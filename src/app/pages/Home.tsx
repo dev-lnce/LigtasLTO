@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router';
 import { toast, Toaster } from 'sonner';
 
 const BRANCHES = [
-  { id: 'lto-diliman', name: 'LTO Diliman District', address: 'East Avenue, Quezon City', hasCards: true, waitTime: '2-3 Oras', grade: 'C' as const },
-  { id: 'lto-novaliches', name: 'LTO Novaliches', address: 'Robinsons Novaliches, QC', hasCards: false, waitTime: '45 Minuto', grade: 'A' as const }
+  { id: 'lto-diliman', name: 'LTO Diliman District', address: 'East Avenue, Quezon City', hasCards: true, waitTime: '2-3 Oras', grade: 'C' as const, isPuno: true },
+  { id: 'lto-novaliches', name: 'LTO Novaliches', address: 'Robinsons Novaliches, QC', hasCards: false, waitTime: '45 Minuto', grade: 'A' as const, isPuno: false }
 ];
 
 export function Home() {
@@ -19,6 +19,7 @@ export function Home() {
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(true);
   const [isChartOpen, setChartOpen] = useState(false);
   const [showAnomaly, setShowAnomaly] = useState(true);
+  const [isPunoAlertDismissed, setPunoAlertDismissed] = useState(false);
 
   // Stale check for the dot (mocking < 10 mins as true for now, but keeping the logic visible)
   const isDataStale = false;
@@ -77,6 +78,22 @@ export function Home() {
           )}
         </motion.button>
       </header>
+
+      {/* PUNO Alert (Scenario 6) */}
+      <AnimatePresence>
+        {!isPunoAlertDismissed && BRANCHES.some(b => b.isPuno) && (
+           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-6 mb-4 overflow-hidden">
+              <div className="bg-[#b32b37] text-white p-3.5 rounded-2xl flex items-start gap-3 shadow-lg relative border border-white/20">
+                 <AlertTriangle size={18} className="flex-shrink-0 mt-0.5 text-white" />
+                 <div>
+                    <h4 className="font-black text-[14px] uppercase tracking-widest mb-1 text-white">May PUNO na Sangay</h4>
+                    <p className="text-xs font-semibold opacity-90 leading-relaxed max-w-[90%]">Ang 1 sangay malapit sa'yo ay ubos na ang queue numbers ngayong araw.</p>
+                 </div>
+                 <button onClick={() => setPunoAlertDismissed(true)} className="absolute top-2 right-2 p-1.5 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><X size={14} /></button>
+              </div>
+           </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hero Banner */}
       <motion.div className="mx-6 mb-6 rounded-[24px] bg-gradient-to-br from-[#E63946] to-[#b32b37] p-6 relative overflow-hidden shadow-lg shadow-[#E63946]/20">

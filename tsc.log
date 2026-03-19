@@ -1,0 +1,5 @@
+﻿src/app/pages/Queue.tsx(6,22): error TS7016: Could not find a declaration file for module 'canvas-confetti'. 'C:/Users/devil/OneDrive/Desktop/LTO/node_modules/canvas-confetti/src/confetti.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/canvas-confetti` if it exists or add a new declaration (.d.ts) file containing `declare module 'canvas-confetti';`
+src/main.tsx(2,30): error TS7016: Could not find a declaration file for module 'react-dom/client'. 'C:/Users/devil/OneDrive/Desktop/LTO/node_modules/react-dom/client.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/react-dom` if it exists or add a new declaration (.d.ts) file containing `declare module 'react-dom/client';`
+src/main.tsx(3,19): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.

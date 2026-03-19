@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, CheckCircle2, AlertCircle, XCircle, RefreshCw, Upload, FileCheck2, ArrowRight } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, XCircle, RefreshCw, Upload, FileCheck2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
 
@@ -161,6 +161,24 @@ export function PreCheck() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Scenario 9: Branch Specific Warning Section */}
+            <div className={`border rounded-2xl p-4 mb-5 ${isDark ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
+               <h4 className={`text-[13px] font-extrabold flex items-center gap-2 mb-2 ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>
+                  <AlertTriangle size={14} /> Heads Up sa mga Branch
+               </h4>
+               <p className={`text-[11px] font-medium leading-relaxed mb-3 ${isDark ? 'text-[#F59E0B]/80' : 'text-amber-800'}`}>Base sa huling mga ulat, madalas hanapin ang mga sumusunod sa mga kalapit na sangay kahit wala sa opisyal na listahan:</p>
+               <div className="flex flex-col gap-2">
+                 <div className={`p-2.5 rounded-xl text-xs font-bold border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-[#F59E0B]/20 text-white' : 'bg-white border-amber-200 text-gray-900'}`}>
+                    <span>Updated MedCert</span>
+                    <span className={`text-[10px] font-black uppercase ${isDark ? 'text-[#F59E0B]' : 'text-amber-600'}`}>12 Ulat - LTO Diliman</span>
+                 </div>
+                 <div className={`p-2.5 rounded-xl text-xs font-bold border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-[#F59E0B]/20 text-white' : 'bg-white border-amber-200 text-gray-900'}`}>
+                    <span>Short bond paper ONLY</span>
+                    <span className={`text-[10px] font-black uppercase ${isDark ? 'text-[#F59E0B]' : 'text-amber-600'}`}>5 Ulat - LTO Diliman</span>
+                 </div>
+               </div>
             </div>
 
             {isAllOk ? (

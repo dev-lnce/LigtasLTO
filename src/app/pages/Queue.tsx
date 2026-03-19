@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, CheckCircle2, Clock, CreditCard, Activity, FileText, AlertTriangle, Users, ChevronDown, Check, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, CreditCard, Activity, FileText, AlertTriangle, Users, ChevronDown, Check, X, MapPin } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
 import confetti from 'canvas-confetti';
+import { CHECK_GEOFENCE, IS_DURING_LUNCH_BREAK, HANDLE_HOLD_TO_SUBMIT } from '../../utils/scenarioGuards';
+import { strings } from '../../locales/strings.fil';
+
+// DUMMY CONSTANTS
+const DEVICE_HASH = 'device-12345'; // in reality: generated / imported
+const BRANCH_ID = 'branch-uuid-1';
+const BRANCH_LAT = 14.6436; // LTO Diliman lat
+const BRANCH_LNG = 121.0450; // LTO Diliman lng
+const BRANCH_OPERATING_HOURS = { open: '08:00', close: '17:00', breaks: [{ start: '12:00', end: '13:00', label: 'Lunch Break' }] };
 
 type TimerState = 'setup' | 'active' | 'success';
 
@@ -13,21 +22,116 @@ export function Queue() {
 
   const [timerState, setTimerState] = useState<TimerState>('setup');
   const [seconds, setSeconds] = useState(0);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  
   const [transactionType, setTransactionType] = useState('License Renewal');
-  const [plasticSubmitted, setPlasticSubmitted] = useState(false);
-  const [isSubmitModalOpen, setSubmitModalOpen] = useState(false);
+  const [queueNumber, setQueueNumber] = useState('');
+  
+  // Scenarios State
+  const [queueType, setQueueType] = useState<'walk-in' | 'appointment' | null>(null); // Scenario 10
+  const [isPreQueue, setIsPreQueue] = useState(false); // Scenario 11
+  const [isCompanion, setIsCompanion] = useState(false); // Scenario 8
+  const [geofenceError, setGeofenceError] = useState(''); // Scenario 3
+  const [isLunchBreak, setIsLunchBreak] = useState(false); // Scenario 7
+  const [recoverySession, setRecoverySession] = useState<any>(null); // Scenario 4
+  const [isPunoConfirmed, setIsPunoConfirmed] = useState(false); // Scenario 6
 
   // Submit Form States
   const [hasPlasticReview, setHasPlasticReview] = useState<boolean | null>(null);
   const [selectedFlags, setSelectedFlags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitModalOpen, setSubmitModalOpen] = useState(false);
+  
+  // Offline Sync State
+  const [offlineSyncMessage, setOfflineSyncMessage] = useState('');
 
-  // Timer Effect
+  // Scenario 2: Milestones
+  const [milestones, setMilestones] = useState([
+    { id: 'eval', label: 'Evaluation Done', timestamp: null as Date | null },
+    { id: 'photo', label: 'Photo/Biometrics Done', timestamp: null as Date | null },
+    { id: 'cashier', label: 'Paid Cashier', timestamp: null as Date | null },
+    { id: 'release', label: 'Received ID/Papers', timestamp: null as Date | null },
+  ]);
+
+  // Handle Mount / Scenario 4 (Recovery) & Background Sync Listener
+  useEffect(() => {
+    const checkPendingSession = async () => {
+      try {
+        const res = await fetch(`/api/sessions/pending?device_hash=${DEVICE_HASH}`);
+        if (res.ok) {
+           const data = await res.json();
+           if (data) {
+             setRecoverySession(data);
+           }
+        }
+      } catch (e) {} // ignore offline
+    };
+    checkPendingSession();
+
+    // Register Background Sync if available
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      navigator.serviceWorker.ready.then(reg => {
+        // Just ensuring it's ready. The actual sync registration happens on offline submit.
+      });
+    }
+
+    const swMessageListener = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'FLUSH_DUE_TO_SYNC') {
+         flushOfflineQueue();
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', swMessageListener);
+    // Also listen to online event
+    window.addEventListener('online', flushOfflineQueue);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', swMessageListener);
+      window.removeEventListener('online', flushOfflineQueue);
+    };
+  }, []);
+
+  // Scenario 1: Offline submission syncer
+  const flushOfflineQueue = async () => {
+    const pendingJson = localStorage.getItem('ligtaslto_pending_submissions');
+    if (!pendingJson) return;
+    const pending = JSON.parse(pendingJson);
+    if (pending.length === 0) return;
+    
+    let toKeep = [];
+    for (const p of pending) {
+       try {
+         const res = await fetch('/api/submissions', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(p)
+         });
+         if (!res.ok) {
+           toKeep.push(p);
+         }
+       } catch (e) {
+         toKeep.push(p);
+       }
+    }
+    localStorage.setItem('ligtaslto_pending_submissions', JSON.stringify(toKeep));
+    if (toKeep.length === 0) {
+      setOfflineSyncMessage(strings.syncSuccessToast);
+      setTimeout(() => setOfflineSyncMessage(''), 4000);
+    }
+  };
+
+  // Timer & Blackout Effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (timerState === 'active') {
       interval = setInterval(() => {
-        setSeconds(s => s + 1);
+        // Scenario 7: Check lunch break
+        const blackout = IS_DURING_LUNCH_BREAK(BRANCH_OPERATING_HOURS);
+        setIsLunchBreak(blackout);
+        
+        // If blackout, don't increment visually, but the DB start/end timestamps will still account for it.
+        if (!blackout) {
+          setSeconds(s => s + 1);
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -41,30 +145,142 @@ export function Queue() {
   };
 
   const getTimerColor = () => {
-    if (seconds < 7200) return isDark ? 'text-white' : 'text-gray-900'; // < 2h
-    if (seconds < 14400) return 'text-[#F59E0B]'; // 2-4h
-    return 'text-[#E63946]'; // > 4h
+    if (isPreQueue) return 'text-[#3B82F6]'; // blue for prequeue
+    if (isLunchBreak) return 'text-[#F59E0B]'; // yellow for paused
+    if (seconds < 7200) return isDark ? 'text-white' : 'text-gray-900';
+    if (seconds < 14400) return 'text-[#F59E0B]';
+    return 'text-[#E63946]';
   };
 
-  const startTimer = () => setTimerState('active');
+  // Scenario 3 & 4: Start Timer Logic
+  const handleStartTimer = async (isPre = false) => {
+    setIsPreQueue(isPre);
 
-  const openSubmitModal = () => {
-    setSubmitModalOpen(true);
+    // Scenario 3: Geofence Check
+    const geo = await CHECK_GEOFENCE(BRANCH_LAT, BRANCH_LNG);
+    if (!geo.allowed) {
+      setGeofenceError(geo.error || strings.geofenceError);
+      return;
+    }
+    setGeofenceError('');
+
+    const start = new Date();
+    setSessionStartTime(start);
+    setTimerState('active');
+
+    if (!isPre) {
+      // Scenario 4: Server session tracking
+      try {
+        await fetch('/api/sessions/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branch_id: BRANCH_ID,
+            transaction_type: transactionType,
+            queue_number: queueNumber,
+            device_hash: DEVICE_HASH,
+            started_at: start.toISOString()
+          })
+        });
+      } catch (e) {} // fine to fail if offline
+    }
   };
 
-  const handleFinalSubmit = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitModalOpen(false);
-      setTimerState('success');
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#E63946', '#10B981', '#F59E0B']
+  const openSubmitModal = () => setSubmitModalOpen(true);
+
+  // Milestone Click
+  const toggleMilestone = (idx: number) => {
+    const updated = [...milestones];
+    if (updated[idx].timestamp) {
+      updated[idx].timestamp = null;
+    } else {
+      updated[idx].timestamp = new Date();
+      if (idx === 3) { // Scenario 2: Received ID stops timer
+        openSubmitModal();
+      }
+    }
+    setMilestones(updated);
+  };
+
+  // Scenario 6: Submit PUNO
+  const reportPuno = async () => {
+    try {
+      await fetch(`/api/branches/${BRANCH_ID}/puno`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_hash: DEVICE_HASH })
       });
-    }, 1500);
+      setIsPunoConfirmed(true);
+    } catch (e) {}
+  };
+
+  // FINAL SUBMISSION
+  const handleFinalSubmit = async () => {
+    setIsSubmitting(true);
+    const end = new Date();
+
+    const payload = {
+      branch_id: BRANCH_ID,
+      transaction_type: transactionType,
+      queue_number: queueNumber,
+      wait_time_seconds: seconds,
+      plastic_card_available: hasPlasticReview,
+      user_flags: selectedFlags,
+      submitted_at: end.toISOString(),
+      started_at: sessionStartTime?.toISOString(),
+      device_hash: DEVICE_HASH,
+      queue_type: queueType,
+      milestones: milestones.map(m => m.timestamp ? { milestone: m.label, completed_at: m.timestamp.toISOString() } : null).filter(Boolean),
+      is_companion_submission: isCompanion
+    };
+
+    try {
+      if (!navigator.onLine) throw new Error('Offline');
+      
+      const res = await fetch(isPreQueue ? '/api/prequeue' : '/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('API Error');
+    } catch (e) {
+      // SCENARIO 1: Offline Logic
+      const pendingJson = localStorage.getItem('ligtaslto_pending_submissions') || '[]';
+      const pending = JSON.parse(pendingJson);
+      pending.push(payload);
+      localStorage.setItem('ligtaslto_pending_submissions', JSON.stringify(pending));
+      
+      if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        const reg = await navigator.serviceWorker.ready;
+        try {
+          // @ts-ignore
+          await reg.sync.register('sync-submissions');
+        } catch(e) {}
+      }
+      setOfflineSyncMessage(strings.offlineBanner);
+    }
+
+    setIsSubmitting(false);
+    setSubmitModalOpen(false);
+    setTimerState('success');
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
+  };
+
+  const renderRecoveryModal = () => {
+    if (!recoverySession) return null;
+    return (
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
+        <div className={`w-full max-w-sm rounded-[24px] p-6 shadow-2xl ${isDark ? 'bg-[#0D1F35] border border-white/10' : 'bg-white'}`}>
+          <h3 className={`font-black text-lg mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Session Recovered</h3>
+          <p className={`text-sm font-medium mb-6 ${isDark ? 'text-blue-200/70' : 'text-gray-600'}`}>
+            {strings.recoveryModalTitle.replace('{time}', new Date(recoverySession.started_at).toLocaleTimeString())}
+          </p>
+          <input type="time" className="w-full p-4 rounded-xl border mb-4 font-bold" />
+          <button onClick={() => setRecoverySession(null)} className="w-full bg-[#E63946] text-white py-3 rounded-xl font-bold">I-submit ang Oras</button>
+          <button onClick={() => setRecoverySession(null)} className="w-full mt-2 py-3 rounded-xl font-bold text-gray-500">I-dismiss</button>
+        </div>
+      </div>
+    );
   };
 
   const renderSetup = () => (
@@ -78,8 +294,22 @@ export function Queue() {
       </div>
 
       <div>
+        <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Type (Required)</label>
+        <div className="flex gap-3">
+           <button onClick={() => setQueueType('walk-in')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'border-white/10 text-white' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeWalkin}</button>
+           <button onClick={() => setQueueType('appointment')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'border-white/10 text-white' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeAppointment}</button>
+        </div>
+      </div>
+
+      <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Number (Optional)</label>
-        <input type="text" placeholder="Halimbawa: A-142" className={`w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm ${isDark ? 'bg-[#0A1626] border-white/10 text-white placeholder:text-blue-200/30 focus:border-white/30' : 'bg-gray-100 border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-gray-400'}`} />
+        <input 
+           type="text" 
+           value={queueNumber}
+           onChange={e => setQueueNumber(e.target.value)}
+           placeholder="Halimbawa: A-142" 
+           className={`w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm ${isDark ? 'bg-[#0A1626] border-white/10 text-white placeholder:text-blue-200/30' : 'bg-gray-100 border-gray-200 text-gray-900'}`} 
+        />
       </div>
 
       <div>
@@ -89,7 +319,7 @@ export function Queue() {
             <button
               key={type}
               onClick={() => setTransactionType(type)}
-              className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all border ${transactionType === type ? 'bg-[#E63946] text-white border-[#E63946] shadow-lg shadow-[#E63946]/20' : (isDark ? 'bg-[#162A45] text-blue-200/70 border-white/10' : 'bg-white text-gray-600 border-gray-200')}`}
+              className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all border ${transactionType === type ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-[#162A45] text-blue-200/70 border-white/10' : 'bg-white text-gray-600')}`}
             >
               {type}
             </button>
@@ -97,21 +327,56 @@ export function Queue() {
         </div>
       </div>
 
-      <button
-        onClick={startTimer}
-        className="w-full mt-4 bg-[#E63946] hover:bg-[#b32b37] text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(230,57,70,0.4)] transition-all active:scale-[0.98]"
-      >
-        Simulan ang Timer
-      </button>
+      <div className="flex items-center gap-3 mt-4">
+         <input type="checkbox" id="companion" checked={isCompanion} onChange={(e) => setIsCompanion(e.target.checked)} className="w-5 h-5 accent-[#E63946]" />
+         <label htmlFor="companion" className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.companionToggle}</label>
+      </div>
+
+      {geofenceError && <div className="text-red-500 text-xs font-bold mt-2"><MapPin size={12} className="inline mr-1"/>{geofenceError}</div>}
+
+      <div className="grid grid-cols-1 gap-3 mt-4">
+        <button
+          onClick={() => handleStartTimer(false)}
+          disabled={!queueType}
+          className="w-full bg-[#E63946] disabled:opacity-50 text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 active:scale-[0.98]"
+        >
+          Simulan ang Timer
+        </button>
+        <button
+          onClick={() => handleStartTimer(true)}
+          disabled={!queueType}
+          className="w-full bg-transparent border-2 border-[#3B82F6] text-[#3B82F6] font-bold py-4 rounded-2xl text-[14px] active:scale-[0.98]"
+        >
+          {strings.prequeueBtn}
+        </button>
+      </div>
     </motion.div>
   );
 
   const renderActive = () => (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pb-24">
+      {offlineSyncMessage && (
+        <div className="mx-6 mb-4 bg-[#F59E0B] text-black font-bold p-3 rounded-lg text-sm text-center shadow-lg">
+          {offlineSyncMessage}
+        </div>
+      )}
+      
+      {isPreQueue && (
+        <div className="mx-6 mb-4 border border-[#3B82F6] bg-[#3B82F6]/10 p-3 rounded-lg text-[13px] font-bold text-[#3B82F6] text-center">
+          {strings.prequeueBanner}
+        </div>
+      )}
+
+      {isLunchBreak && (
+        <div className="mx-6 mb-4 border border-[#F59E0B] bg-[#F59E0B]/10 p-3 rounded-lg text-[13px] font-bold text-[#F59E0B] text-center">
+          {strings.lunchBreakBanner.replace('{start}', '12:00').replace('{end}', '1:00')}
+        </div>
+      )}
+
       <div className="px-6 mb-5">
-        <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200'}`}>
+        <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200')}`}>
           <div className="w-full flex justify-between items-center mb-6">
-            <h2 className={`font-bold text-[15px] tracking-tight text-left leading-tight max-w-[65%] ${isDark ? 'text-white' : 'text-gray-900'}`}>LTO Diliman District</h2>
+            <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>LTO Diliman District</h2>
             <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
               <span className={isDark ? 'text-blue-200/70' : 'text-gray-600'}>{transactionType}</span>
             </div>
@@ -120,115 +385,86 @@ export function Queue() {
           <div className={`mb-2 w-full flex justify-center items-center font-mono text-[3.5rem] leading-none font-black tracking-tighter ${getTimerColor()}`}>
             {formatTime(seconds)}
           </div>
-
           <p className={`text-xs font-bold uppercase tracking-widest mb-8 ${isDark ? 'text-blue-200/40' : 'text-gray-400'}`}>Oras ng paghihintay</p>
+        </motion.div>
+      </div>
 
+      {/* Scenario 2: Milestones Checklist */}
+      {!isPreQueue && (
+         <div className="px-6 mb-8">
+            <h3 className={`font-bold text-[13px] mb-3 uppercase tracking-wider ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Mga Hakbang</h3>
+            <div className="flex flex-col gap-2">
+               {milestones.map((m, idx) => (
+                  <button 
+                     key={m.id} 
+                     onClick={() => toggleMilestone(idx)}
+                     className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${m.timestamp ? 'bg-[#10B981]/10 border-[#10B981] text-[#10B981]' : (isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900')}`}
+                  >
+                     <span className="font-extrabold text-[14px]">{m.label}</span>
+                     {m.timestamp ? <CheckCircle2 size={20} className="text-[#10B981]" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-400/30" />}
+                  </button>
+               ))}
+            </div>
+         </div>
+      )}
+
+      {/* Scenario 6: PUNO Button */}
+      {!isPreQueue && !isPunoConfirmed && (
+        <div className="px-6 mb-8 mt-4">
+           <button onClick={reportPuno} className="w-full py-3 border border-red-500 text-red-500 rounded-xl font-bold text-sm hover:bg-red-500 hover:text-white transition-colors">
+              {strings.punoReportBtn}
+           </button>
+        </div>
+      )}
+      {isPunoConfirmed && (
+        <div className="mx-6 mb-8 border border-red-500 bg-red-500 text-white p-3 rounded-lg text-[13px] font-bold text-center">
+           Na-report na rito bilang PUNO. Salamat!
+        </div>
+      )}
+
+      {/* Force override submit if milestones are skipped */}
+      <div className="px-6">
           <button
             onClick={openSubmitModal}
-            className="w-full bg-[#E63946] hover:bg-[#b32b37] text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(230,57,70,0.4)] transition-all active:scale-[0.98]"
+            className="w-full bg-gray-600 text-white py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 active:scale-[0.98]"
           >
-            <CheckCircle2 size={20} strokeWidth={3} /> Tapos Na — I-submit
+            Force Submit / Tapos na ako
           </button>
-        </motion.div>
-      </div>
-
-      {/* Branch Stats Mini Card */}
-      <div className="px-6 mb-5">
-        <motion.div className={`rounded-[20px] p-4 border flex items-center gap-4 ${isDark ? 'bg-[#162A45]/60 border-white/5' : 'bg-gray-100 border-gray-200'}`}>
-          <div className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center shadow-inner flex-shrink-0 ${isDark ? 'bg-[#F59E0B]/10 border-[#F59E0B]/40' : 'bg-amber-50 border-amber-200'}`}>
-            <span className="text-[#F59E0B] font-black text-xl leading-none">C</span>
-            <span className={`text-[8px] font-bold uppercase mt-0.5 ${isDark ? 'text-[#F59E0B]/60' : 'text-amber-600/80'}`}>Grade</span>
-          </div>
-          <div className="flex flex-wrap gap-2 flex-1">
-            {[{ i: Clock, t: '2.5h Avg' }, { i: CreditCard, t: '60% Cards' }, { i: Activity, t: '124 Reports' }].map((x, idx) => (
-              <div key={idx} className={`border px-3 py-1.5 rounded-full flex items-center gap-1.5 ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-300 shadow-sm'}`}>
-                <x.i size={12} className={isDark ? 'text-blue-200/60' : 'text-gray-500'} />
-                <span className={`text-[10px] font-bold ${isDark ? 'text-white' : 'text-gray-700'}`}>{x.t}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Plastic Status Quick Submit */}
-      <div className="px-6 mb-8">
-        <h3 className={`font-bold text-[13px] mb-3 uppercase tracking-wider ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Quick Update: May Plastic Ba?</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <motion.button
-            disabled={plasticSubmitted}
-            onClick={() => setPlasticSubmitted(true)}
-            className={`border p-4 rounded-[20px] flex flex-col items-center justify-center gap-2 transition-colors ${plasticSubmitted ? (isDark ? 'opacity-50 bg-[#10B981]/5 border-[#10B981]/10' : 'opacity-50 bg-gray-50 border-gray-200') : (isDark ? 'bg-[#10B981]/10 border-[#10B981]/30 hover:bg-[#10B981]/20' : 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100 shadow-sm')}`}
-          >
-            <CreditCard size={24} className={isDark ? 'text-[#10B981]' : 'text-emerald-600'} />
-            <span className={`font-extrabold text-[13px] ${isDark ? 'text-[#10B981]' : 'text-emerald-700'}`}>{plasticSubmitted ? 'Salamat!' : 'May Plastic'}</span>
-          </motion.button>
-          <motion.button
-            disabled={plasticSubmitted}
-            onClick={() => setPlasticSubmitted(true)}
-            className={`border p-4 rounded-[20px] flex flex-col items-center justify-center gap-2 transition-colors shadow-inner ${plasticSubmitted ? (isDark ? 'opacity-50 bg-[#0A1626]/50 border-white/5' : 'opacity-50 bg-gray-50 border-gray-200') : (isDark ? 'bg-[#0A1626] border-white/10 hover:bg-white/5' : 'bg-white border-gray-300 hover:bg-gray-50')}`}
-          >
-            <FileText size={24} className={isDark ? 'text-blue-200/60' : 'text-gray-500'} />
-            <span className={`font-bold text-[13px] ${isDark ? 'text-blue-200/80' : 'text-gray-700'}`}>{plasticSubmitted ? 'Salamat!' : 'Wala, Paper lang'}</span>
-          </motion.button>
-        </div>
-      </div>
-
-      {/* Recent Reports */}
-      <div className="px-6">
-        <h3 className={`font-bold text-[15px] mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          <Users size={16} className={isDark ? 'text-blue-200/50' : 'text-gray-500'} /> Mga Huling Ulat ng Pila
-        </h3>
-        <div className="flex flex-col gap-3">
-          <motion.div className={`border p-4 rounded-[16px] flex items-center justify-between ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
-            <div className="flex items-center gap-3">
-              <div className={`border px-2 py-1 rounded font-mono font-bold text-xs ${isDark ? 'bg-[#0A1626] border-white/10 text-white' : 'bg-gray-100 border-gray-300 text-gray-900'}`}>A-140</div>
-              <div>
-                <p className={`font-bold text-[13px] leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{transactionType}</p>
-                <p className={`text-[10px] font-medium mt-0.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>5 min nakalipas</p>
-              </div>
-            </div>
-            <div className={`font-black text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>01:45:20</div>
-          </motion.div>
-
-          {/* Anomaly Flagged Report */}
-          <motion.div className={`border p-4 rounded-[16px] flex items-center justify-between relative overflow-hidden cursor-pointer ${isDark ? 'bg-[#F59E0B]/10 border-[#F59E0B]/40' : 'bg-amber-50 border-amber-200'}`}>
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#F59E0B]" />
-            <div className="flex items-center gap-3 pl-1">
-              <div className={`border px-2 py-1 rounded font-mono font-bold text-xs ${isDark ? 'bg-[#F59E0B]/20 border-[#F59E0B]/30 text-[#F59E0B]' : 'bg-amber-100 border-amber-300 text-amber-700'}`}>B-089</div>
-              <div>
-                <p className={`font-extrabold text-[13px] leading-tight flex items-center gap-1.5 ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>
-                  <AlertTriangle size={12} strokeWidth={3} /> Bagong Lisensya
-                </p>
-                <p className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-[#F59E0B]/70' : 'text-amber-600'}`}>May fixer na nakita</p>
-              </div>
-            </div>
-            <div className={`font-black text-sm ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>00:15:00</div>
-          </motion.div>
-        </div>
       </div>
     </motion.div>
   );
 
   const renderSuccess = () => (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="px-6 flex flex-col items-center justify-center text-center mt-10">
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="px-6 flex flex-col items-center justify-center text-center mt-10 pb-20">
       <div className="w-24 h-24 bg-[#10B981] rounded-full flex items-center justify-center text-white mb-6 shadow-[0_0_40px_rgba(16,185,129,0.5)]">
         <Check size={48} strokeWidth={3} />
       </div>
       <h2 className={`font-black tracking-tight text-2xl mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Maraming Salamat!</h2>
-      <p className={`font-medium text-sm px-4 mb-8 leading-relaxed ${isDark ? 'text-blue-200/70' : 'text-gray-500'}`}>Ang iyong ulat ay malaking tulong sa libu-libong motorista ngayong araw.</p>
+      <p className={`font-medium text-sm px-4 mb-4 ${isDark ? 'text-blue-200/70' : 'text-gray-500'}`}>Ang iyong ulat ay malaking tulong sa libu-libong motorista.</p>
+      
+      {offlineSyncMessage && <p className="text-[#F59E0B] font-bold text-xs mb-6">{offlineSyncMessage}</p>}
 
       <div className={`w-full p-6 rounded-[24px] border border-dashed mb-8 text-left ${isDark ? 'bg-[#162A45]/50 border-white/20' : 'bg-gray-50 border-gray-300'}`}>
-        <span className={`block text-[10px] uppercase font-bold tracking-widest mb-1 ${isDark ? 'text-blue-200/50' : 'text-gray-400'}`}>Total Wait Time</span>
-        <span className={`block font-mono font-black text-3xl mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatTime(seconds)}</span>
-
-        <span className={`block text-[10px] uppercase font-bold tracking-widest mb-1 ${isDark ? 'text-blue-200/50' : 'text-gray-400'}`}>Branch</span>
-        <span className={`block font-bold text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>LTO Diliman District</span>
+         <span className={`block text-[10px] uppercase font-bold tracking-widest mb-1 ${isDark ? 'text-blue-200/50' : 'text-gray-400'}`}>Total Wait Time</span>
+         <span className={`block font-mono font-black text-3xl mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatTime(seconds)}</span>
       </div>
 
-      <button
-        onClick={() => navigate('/')}
-        className={`w-full py-4 rounded-2xl font-black text-[15px] border transition-colors ${isDark ? 'bg-[#162A45] border-white/10 text-white hover:bg-[#162A45]/80' : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50'}`}
-      >
+      {/* Scenario 9: Requirements Report */}
+      <div className={`w-full p-5 rounded-[20px] border mb-8 text-left ${isDark ? 'bg-[#162A45] border-[#F59E0B]/30' : 'bg-orange-50 border-orange-200'}`}>
+         <h4 className={`font-bold text-[14px] mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.requirementsTitle}</h4>
+         <div className="flex flex-wrap gap-2">
+            {['Updated MedCert', 'Short bond only', 'Extra photocopy'].map(req => (
+               <button key={req} onClick={() => {
+                  fetch(`/api/branches/${BRANCH_ID}/requirements`, {
+                     method: 'POST', headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ requirement_tag: req, device_hash: DEVICE_HASH })
+                  });
+               }} className="px-3 py-1.5 bg-orange-500/10 text-orange-600 border border-orange-200 rounded-full text-xs font-extrabold">{req}</button>
+            ))}
+         </div>
+      </div>
+
+      <button onClick={() => navigate('/')} className={`w-full py-4 rounded-2xl font-black text-[15px] border ${isDark ? 'bg-[#162A45] text-white hover:bg-[#162A45]/80' : 'bg-white text-gray-900 hover:bg-gray-50'}`}>
         Bumalik sa Home
       </button>
     </motion.div>
@@ -236,17 +472,17 @@ export function Queue() {
 
   return (
     <>
+      {renderRecoveryModal()}
+      
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border transition-colors ${isDark ? 'bg-[#162A45] border-white/5 text-white hover:bg-white/10' : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-100'}`}>
+          <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
             <ArrowLeft size={18} />
           </button>
           <div>
             <motion.h1 className={`text-2xl font-black tracking-tight leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {timerState === 'setup' ? 'Ayusin ang Queue' : 'Queue Timer'}
             </motion.h1>
-            {timerState === 'setup' && <motion.p className={`text-xs font-medium ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Ilagay ang detalye para magsimula</motion.p>}
-            {timerState === 'active' && <motion.p className={`text-xs font-medium ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Aktibong subaybay ng oras</motion.p>}
           </div>
         </div>
       </header>
@@ -257,92 +493,61 @@ export function Queue() {
         {timerState === 'success' && renderSuccess()}
       </AnimatePresence>
 
-      {/* Review & Submit Bottom Sheet Modal */}
       <AnimatePresence>
         {isSubmitModalOpen && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-[3rem]"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setSubmitModalOpen(false)}
             />
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={`relative w-full h-[85%] rounded-t-[32px] p-6 shadow-2xl border-t flex flex-col ${isDark ? 'bg-[#0D1F35] border-white/10' : 'bg-white border-gray-200'}`}
             >
-              <div className="w-12 h-1.5 bg-gray-400/30 rounded-full mx-auto mb-6 flex-shrink-0" />
-              <div className="flex justify-between items-center mb-6 flex-shrink-0">
+              <div className="flex justify-between items-center mb-6">
                 <h3 className={`font-black tracking-tight text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Review & Submit</h3>
                 <button onClick={() => setSubmitModalOpen(false)} className={`p-2 rounded-full ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'}`}><X size={18} /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-2 pb-6 space-y-6 scrollbar-hide">
-                {/* Step 1: Confirm Wait Time */}
+              <div className="flex-1 overflow-y-auto pr-2 pb-6 space-y-6">
                 <div>
                   <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><Clock size={12} /> Confirm Wait Time</label>
                   <div className={`font-mono text-3xl font-black flex items-center gap-2 ${getTimerColor()}`}>
                     {formatTime(seconds)}
-                    <span className="text-sm font-bold opacity-50 bg-[#E63946]/10 px-2 py-1 rounded">Mula app load</span>
                   </div>
                 </div>
 
-                {/* Step 2: Plastic Card Question */}
-                <div>
-                  <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><CreditCard size={12} /> May nakuha ka bang Plastic Card?</label>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setHasPlasticReview(true)}
-                      className={`flex-1 border p-3 rounded-[16px] flex flex-col items-center gap-1 transition-colors ${hasPlasticReview === true ? 'bg-[#10B981] border-[#10B981] text-white shadow-lg shadow-[#10B981]/30' : (isDark ? 'bg-[#162A45] border-white/10 text-white hover:bg-white/5' : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50')}`}
-                    >
-                      <span className="font-extrabold text-[13px]">Oo, May Plastic</span>
-                    </button>
-                    <button
-                      onClick={() => setHasPlasticReview(false)}
-                      className={`flex-1 border p-3 rounded-[16px] flex flex-col items-center gap-1 transition-colors ${hasPlasticReview === false ? 'bg-[#E63946] border-[#E63946] text-white shadow-lg shadow-[#E63946]/30' : (isDark ? 'bg-[#162A45] border-white/10 text-white hover:bg-white/5' : 'bg-white border-gray-200 text-gray-900 hover:bg-gray-50')}`}
-                    >
-                      <span className="font-extrabold text-[13px]">Wala, Paper lang</span>
-                    </button>
+                {/* Question */}
+                {!isPreQueue && (
+                  <div>
+                    <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><CreditCard size={12} /> May nakuha ka bang Plastic Card?</label>
+                    <div className="flex gap-3">
+                      <button onClick={() => setHasPlasticReview(true)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === true ? 'bg-[#10B981] border-[#10B981] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Oo, May Plastic</span></button>
+                      <button onClick={() => setHasPlasticReview(false)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === false ? 'bg-[#E63946] border-[#E63946] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Wala, Paper lang</span></button>
+                    </div>
                   </div>
-                </div>
-
-                {/* Step 3: Optional Experience Flags */}
-                <div>
-                  <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><AlertTriangle size={12} /> Experience (Optional)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['May fixer na nakita', 'Napakabilis', 'Masungit ang staff', 'Sira ang system'].map(flag => {
-                      const isSelected = selectedFlags.includes(flag);
-                      return (
-                        <button
-                          key={flag}
-                          onClick={() => {
-                            if (isSelected) setSelectedFlags(selectedFlags.filter(f => f !== flag));
-                            else setSelectedFlags([...selectedFlags, flag]);
-                          }}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${isSelected ? 'bg-[#F59E0B] text-white border-[#F59E0B] shadow-lg shadow-[#F59E0B]/20' : (isDark ? 'bg-[#0A1626] text-blue-200/60 border-white/10' : 'bg-gray-100 text-gray-600 border-gray-200')}`}
-                        >
-                          {flag}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Submit Button */}
-              <button
-                onClick={handleFinalSubmit}
-                disabled={hasPlasticReview === null || isSubmitting}
-                className={`w-full py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 mt-2 transition-all flex-shrink-0 ${hasPlasticReview === null ? (isDark ? 'bg-white/10 text-white/30 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed') : 'bg-[#E63946] hover:bg-[#b32b37] text-white shadow-[0_4px_20px_rgba(230,57,70,0.4)] active:scale-[0.98]'}`}
-              >
-                {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>I-sumite ang Ulat</>
-                )}
-              </button>
+              {/* Scenario 12: Hold to submit */}
+              <div className="flex-shrink-0 relative">
+                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{strings.holdToSubmitLabel}</p>
+                  <button
+                    {...HANDLE_HOLD_TO_SUBMIT(handleFinalSubmit)}
+                    disabled={(hasPlasticReview === null && !isPreQueue) || isSubmitting}
+                    className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none ${(hasPlasticReview === null && !isPreQueue) ? 'bg-gray-200 text-gray-400' : 'bg-[#E63946] text-white'}`}
+                    style={{ WebkitUserSelect: 'none', touchAction: 'none' }}
+                  >
+                    <div className="relative z-10">{isSubmitting ? 'Nagsu-submit...' : 'Pindutin nang matagal (2s)'}</div>
+                    <div className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-[2000ms] w-0 -z-0 ease-linear [parent.holding_&]:w-full" />
+                  </button>
+
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    button.holding div.absolute { width: 100%; transition: width 2s linear; }
+                    button:not(.holding) div.absolute { width: 0%; transition: width 0.1s linear; }
+                  `}} />
+              </div>
             </motion.div>
           </div>
         )}
