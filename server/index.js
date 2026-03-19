@@ -3,6 +3,8 @@ const { Pool } = require('pg');
 const cron = require('node-cron');
 const cors = require('cors');
 
+const DEMO_MODE = process.env.DEMO_MODE === 'true';
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -34,27 +36,29 @@ app.post('/api/submissions', async (req, res) => {
 
   try {
     // SCENARIO 8: Rate Limiting
-    const rateLimitQuery = await pool.query(`
-      SELECT transaction_type FROM timer_submissions 
-      WHERE branch_id = $1 AND device_hash = $2 AND DATE(submitted_at) = CURRENT_DATE
-    `, [branch_id, device_hash]);
-    
-    // Check constraints: max 3 per device per branch per day
-    if (rateLimitQuery.rowCount >= 3) {
-      // Even if it's a companion submission, reject if more than 3 IDENTICAL transaction types exist in the last hour
-      const recentIdentical = rateLimitQuery.rows.filter(r => r.transaction_type === transaction_type);
-      if (recentIdentical.length >= 3) {
-        return res.status(429).json({ error: 'Suspicious activity detected. Too many identical submissions.' });
-      }
+    if (!DEMO_MODE) {
+      const rateLimitQuery = await pool.query(`
+        SELECT transaction_type FROM timer_submissions 
+        WHERE branch_id = $1 AND device_hash = $2 AND DATE(submitted_at) = CURRENT_DATE
+      `, [branch_id, device_hash]);
       
-      if (!is_companion_submission) {
-        return res.status(429).json({ error: 'Max 3 submissions per device per day reached.' });
-      }
-    } else {
-      // Reject if identical transaction type exists for exact same device today unless companion
-      const hasIdentical = rateLimitQuery.rows.some(r => r.transaction_type === transaction_type);
-      if (hasIdentical && !is_companion_submission) {
-         return res.status(429).json({ error: 'Duplicate transaction type submitted today.' });
+      // Check constraints: max 3 per device per branch per day
+      if (rateLimitQuery.rowCount >= 3) {
+        // Even if it's a companion submission, reject if more than 3 IDENTICAL transaction types exist in the last hour
+        const recentIdentical = rateLimitQuery.rows.filter(r => r.transaction_type === transaction_type);
+        if (recentIdentical.length >= 3) {
+          return res.status(429).json({ error: 'Suspicious activity detected. Too many identical submissions.' });
+        }
+        
+        if (!is_companion_submission) {
+          return res.status(429).json({ error: 'Max 3 submissions per device per day reached.' });
+        }
+      } else {
+        // Reject if identical transaction type exists for exact same device today unless companion
+        const hasIdentical = rateLimitQuery.rows.some(r => r.transaction_type === transaction_type);
+        if (hasIdentical && !is_companion_submission) {
+           return res.status(429).json({ error: 'Duplicate transaction type submitted today.' });
+        }
       }
     }
 
@@ -200,6 +204,15 @@ app.post('/api/branches/:id/puno', async (req, res) => {
   const { id } = req.params;
   const { device_hash } = req.body;
   
+  if (DEMO_MODE) {
+    await pool.query(`
+      INSERT INTO branch_daily_status (branch_id, date, is_puno, puno_reported_at)
+      VALUES ($1, CURRENT_DATE, true, NOW())
+      ON CONFLICT (branch_id, date) DO UPDATE SET is_puno = true, puno_reported_at = NOW()
+    `, [id]);
+    return res.json({ confirmed: true });
+  }
+
   // Log request (using anomaly_flags as placeholder or a dedicated table)
   await pool.query(`
     INSERT INTO anomaly_flags (branch_id, flag_type, trigger_count) 

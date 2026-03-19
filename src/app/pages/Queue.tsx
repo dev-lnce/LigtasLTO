@@ -6,19 +6,62 @@ import { useNavigate } from 'react-router';
 import confetti from 'canvas-confetti';
 import { CHECK_GEOFENCE, IS_DURING_LUNCH_BREAK, HANDLE_HOLD_TO_SUBMIT } from '../../utils/scenarioGuards';
 import { strings } from '../../locales/strings.fil';
+import { DEMO_MODE } from '../../config.js';
+import { demoBranches } from '../../demoBranches.js';
 
 // DUMMY CONSTANTS
 const DEVICE_HASH = 'device-12345'; // in reality: generated / imported
-const BRANCH_ID = 'branch-uuid-1';
-const BRANCH_LAT = 14.6436; // LTO Diliman lat
-const BRANCH_LNG = 121.0450; // LTO Diliman lng
 const BRANCH_OPERATING_HOURS = { open: '08:00', close: '17:00', breaks: [{ start: '12:00', end: '13:00', label: 'Lunch Break' }] };
 
 type TimerState = 'setup' | 'active' | 'success';
 
+type BranchOption = {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  stats?: {
+    hasPlasticCards?: boolean;
+    avgWaitWalkIn?: string;
+    avgWaitAppointment?: string;
+    grade?: string;
+    isPuno?: boolean;
+    highDemand?: boolean;
+    prequeueMinutes?: number;
+    reportsToday?: number;
+  };
+  isDemo?: boolean;
+};
+
+const REAL_BRANCHES: BranchOption[] = [
+  {
+    id: 'lto-diliman',
+    name: 'LTO Diliman District',
+    address: 'East Avenue, Quezon City',
+    lat: 14.6436,
+    lng: 121.045,
+  },
+  {
+    id: 'lto-novaliches',
+    name: 'LTO Novaliches',
+    address: 'Robinsons Novaliches, Quezon City',
+    lat: 14.7216,
+    lng: 121.0452,
+  },
+];
+
+const DEMO_BRANCHES: BranchOption[] = (demoBranches || []).map((b: any) => ({
+  ...b,
+  isDemo: true,
+}));
+
 export function Queue() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+
+  const [isBranchPickerOpen, setBranchPickerOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<BranchOption>(REAL_BRANCHES[0]);
 
   const [timerState, setTimerState] = useState<TimerState>('setup');
   const [seconds, setSeconds] = useState(0);
@@ -157,7 +200,7 @@ export function Queue() {
     setIsPreQueue(isPre);
 
     // Scenario 3: Geofence Check
-    const geo = await CHECK_GEOFENCE(BRANCH_LAT, BRANCH_LNG);
+    const geo = await CHECK_GEOFENCE(selectedBranch.lat, selectedBranch.lng);
     if (!geo.allowed) {
       setGeofenceError(geo.error || strings.geofenceError);
       return;
@@ -175,7 +218,7 @@ export function Queue() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            branch_id: BRANCH_ID,
+            branch_id: selectedBranch.id,
             transaction_type: transactionType,
             queue_number: queueNumber,
             device_hash: DEVICE_HASH,
@@ -205,7 +248,7 @@ export function Queue() {
   // Scenario 6: Submit PUNO
   const reportPuno = async () => {
     try {
-      await fetch(`/api/branches/${BRANCH_ID}/puno`, {
+      await fetch(`/api/branches/${selectedBranch.id}/puno`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_hash: DEVICE_HASH })
@@ -220,7 +263,7 @@ export function Queue() {
     const end = new Date();
 
     const payload = {
-      branch_id: BRANCH_ID,
+      branch_id: selectedBranch.id,
       transaction_type: transactionType,
       queue_number: queueNumber,
       wait_time_seconds: seconds,
@@ -287,10 +330,13 @@ export function Queue() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-6 space-y-6 pb-20">
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Branch</label>
-        <button className={`w-full px-4 py-3.5 rounded-2xl border flex items-center justify-between shadow-sm transition-colors ${isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200'}`}>
-          <span className={`font-bold text-[15px] ${isDark ? 'text-white' : 'text-gray-900'}`}>LTO Diliman District</span>
+        <button onClick={() => setBranchPickerOpen(true)} className={`w-full px-4 py-3.5 rounded-2xl border flex items-center justify-between shadow-sm transition-colors ${isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200'}`}>
+          <span className={`font-bold text-[15px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</span>
           <ChevronDown size={18} className={isDark ? 'text-blue-200/50' : 'text-gray-400'} />
         </button>
+        <p className={`text-[11px] font-medium mt-2 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
+          <MapPin size={10} /> {selectedBranch.address}
+        </p>
       </div>
 
       <div>
@@ -376,7 +422,7 @@ export function Queue() {
       <div className="px-6 mb-5">
         <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200')}`}>
           <div className="w-full flex justify-between items-center mb-6">
-            <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>LTO Diliman District</h2>
+            <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</h2>
             <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
               <span className={isDark ? 'text-blue-200/70' : 'text-gray-600'}>{transactionType}</span>
             </div>
@@ -455,7 +501,7 @@ export function Queue() {
          <div className="flex flex-wrap gap-2">
             {['Updated MedCert', 'Short bond only', 'Extra photocopy'].map(req => (
                <button key={req} onClick={() => {
-                  fetch(`/api/branches/${BRANCH_ID}/requirements`, {
+                  fetch(`/api/branches/${selectedBranch.id}/requirements`, {
                      method: 'POST', headers: { 'Content-Type': 'application/json' },
                      body: JSON.stringify({ requirement_tag: req, device_hash: DEVICE_HASH })
                   });
@@ -473,6 +519,99 @@ export function Queue() {
   return (
     <>
       {renderRecoveryModal()}
+
+      <AnimatePresence>
+        {isBranchPickerOpen && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setBranchPickerOpen(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className={`relative w-full max-w-sm rounded-[24px] p-5 shadow-2xl border ${isDark ? 'bg-[#0D1F35] border-white/10' : 'bg-white border-gray-200'}`}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className={`font-black tracking-tight text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Pumili ng Branch</h3>
+                <button onClick={() => setBranchPickerOpen(false)} className={`p-2 rounded-full ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'}`}><X size={16} /></button>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-3">
+                {DEMO_MODE && DEMO_BRANCHES.length > 0 && (
+                  <div>
+                    <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-[#F4A261]' : 'text-amber-700'}`}>Demo Branches</div>
+                    <div className="flex flex-col gap-2">
+                      {DEMO_BRANCHES.map((b) => (
+                        <button
+                          key={b.id}
+                          onClick={() => {
+                            setSelectedBranch(b);
+                            setGeofenceError('');
+                            setIsPunoConfirmed(false);
+                            setBranchPickerOpen(false);
+                          }}
+                          className={`text-left px-4 py-3 rounded-2xl border transition-colors ${isDark ? 'bg-[#162A45] border-white/10 hover:bg-white/5 text-white' : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-900'}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-[14px] truncate">{b.name}</div>
+                              <div className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
+                                <MapPin size={10} /> <span className="truncate">{b.address}</span>
+                              </div>
+                            </div>
+                            {b.stats?.grade && (
+                              <div className={`px-2 py-1 rounded-full text-[10px] font-black border ${isDark ? 'border-white/10 text-white/90' : 'border-gray-200 text-gray-700'}`}>
+                                {b.stats.grade}
+                              </div>
+                            )}
+                          </div>
+                          {(b.stats?.avgWaitWalkIn || b.stats?.hasPlasticCards !== undefined) && (
+                            <div className={`mt-2 text-[10px] font-bold flex flex-wrap gap-2 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
+                              {b.stats?.avgWaitWalkIn && <span>Walk-in: {b.stats.avgWaitWalkIn}</span>}
+                              {b.stats?.hasPlasticCards !== undefined && (
+                                <span>{b.stats.hasPlasticCards ? 'May Plastic' : 'Walang Plastic'}</span>
+                              )}
+                              {b.stats?.reportsToday !== undefined && <span>Reports: {b.stats.reportsToday}</span>}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-blue-200/40' : 'text-gray-500'}`}>Branches</div>
+                  <div className="flex flex-col gap-2">
+                    {REAL_BRANCHES.map((b) => (
+                      <button
+                        key={b.id}
+                        onClick={() => {
+                          setSelectedBranch(b);
+                          setGeofenceError('');
+                          setIsPunoConfirmed(false);
+                          setBranchPickerOpen(false);
+                        }}
+                        className={`text-left px-4 py-3 rounded-2xl border transition-colors ${isDark ? 'bg-[#162A45] border-white/10 hover:bg-white/5 text-white' : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-900'}`}
+                      >
+                        <div className="font-extrabold text-[14px]">{b.name}</div>
+                        <div className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
+                          <MapPin size={10} /> {b.address}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -532,14 +671,14 @@ export function Queue() {
 
               {/* Scenario 12: Hold to submit */}
               <div className="flex-shrink-0 relative">
-                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{strings.holdToSubmitLabel}</p>
+                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{DEMO_MODE ? 'I-tap para isumite.' : strings.holdToSubmitLabel}</p>
                   <button
                     {...HANDLE_HOLD_TO_SUBMIT(handleFinalSubmit)}
                     disabled={(hasPlasticReview === null && !isPreQueue) || isSubmitting}
                     className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none ${(hasPlasticReview === null && !isPreQueue) ? 'bg-gray-200 text-gray-400' : 'bg-[#E63946] text-white'}`}
                     style={{ WebkitUserSelect: 'none', touchAction: 'none' }}
                   >
-                    <div className="relative z-10">{isSubmitting ? 'Nagsu-submit...' : 'Pindutin nang matagal (2s)'}</div>
+                    <div className="relative z-10">{isSubmitting ? 'Nagsu-submit...' : (DEMO_MODE ? 'I-submit' : 'Pindutin nang matagal (2s)')}</div>
                     <div className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-[2000ms] w-0 -z-0 ease-linear [parent.holding_&]:w-full" />
                   </button>
 

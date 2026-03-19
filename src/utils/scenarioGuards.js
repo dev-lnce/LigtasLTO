@@ -1,5 +1,13 @@
+import { DEMO_MODE } from '../config.js';
+
 export const CHECK_GEOFENCE = (targetLat, targetLng) => {
   return new Promise((resolve) => {
+    if (DEMO_MODE) {
+      console.warn('[DEMO MODE] Geofence check bypassed.');
+      resolve({ allowed: true });
+      return;
+    }
+
     if (!navigator.geolocation) {
       resolve({ allowed: false, error: 'Geolocation is not supported by your browser' });
       return;
@@ -50,6 +58,12 @@ export const IS_DURING_LUNCH_BREAK = (operatingHours) => {
 };
 
 export const HANDLE_HOLD_TO_SUBMIT = (callback) => {
+  if (DEMO_MODE) {
+    return {
+      onClick: () => callback(),
+    };
+  }
+
   let holdTimer = null;
   return {
     onPointerDown: (e) => {

@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import { Home, Map, Users, CheckSquare, Sun, Moon } from 'lucide-react';
 import { useTheme } from './ThemeContext';
+import { DEMO_MODE } from '../config.js';
 
 export function Root() {
   const { isDark, toggleTheme } = useTheme();
@@ -18,9 +19,18 @@ export function Root() {
   return (
     <div className={`min-h-screen flex items-center justify-center p-4 sm:p-8 font-sans selection:bg-[#E63946] selection:text-white transition-colors duration-300 ${isDark ? 'bg-black' : 'bg-gray-200'}`}>
       <div className={`w-full max-w-[400px] h-[850px] rounded-[3rem] shadow-2xl overflow-hidden relative border-[8px] flex flex-col transition-colors duration-300 ${isDark ? 'bg-[#0D1F35] border-gray-900 ring-4 ring-gray-800' : 'bg-gray-50 border-gray-300 ring-4 ring-gray-400'}`}>
+
+        {DEMO_MODE && (
+          <div
+            className="absolute top-0 left-0 right-0 z-[60] text-center font-bold"
+            style={{ backgroundColor: '#F4A261', color: '#412402', fontSize: 11, paddingTop: 2, paddingBottom: 2 }}
+          >
+            DEMO MODE — Location checks disabled
+          </div>
+        )}
         
         {/* Status Bar */}
-        <div className="h-7 w-full flex justify-between items-center px-6 pt-2 z-50 absolute top-0 left-0 right-0 pointer-events-none">
+        <div className="h-7 w-full flex justify-between items-center px-6 pt-2 z-50 absolute top-[18px] left-0 right-0 pointer-events-none">
           <span className={`text-[11px] font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>9:41</span>
           <div className="flex gap-1.5 items-center">
              <div className={`w-4 h-3 rounded-[2px] ${isDark ? 'bg-white' : 'bg-gray-900'}`} />
@@ -32,7 +42,7 @@ export function Root() {
         </div>
 
         {/* Dynamic Island */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-full z-50 pointer-events-none" />
+        <div className="absolute top-[26px] left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-full z-50 pointer-events-none" />
 
         {/* Theme Toggle Button (Floating) */}
         <button 
@@ -43,7 +53,7 @@ export function Root() {
         </button>
 
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 relative scrollbar-hide pt-16">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 relative scrollbar-hide pt-20">
           <Outlet />
         </div>
 
