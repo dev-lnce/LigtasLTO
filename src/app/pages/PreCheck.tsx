@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, CheckCircle2, AlertCircle, XCircle, RefreshCw, Upload, FileCheck2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
 
@@ -58,8 +57,10 @@ export function PreCheck() {
   return (
     <>
       <header className="px-6 pb-4 pt-2">
-        <motion.h1 className={`text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Form Pre-Check</motion.h1>
-        <motion.p className={`text-[12px] font-medium mt-1 leading-relaxed max-w-[90%] ${isDark ? 'text-blue-200/70' : 'text-gray-500'}`}>I-scan bago pumila para makatipid ng oras.</motion.p>
+        <motion.h1 className="text-2xl font-black tracking-tight text-on-surface dark:text-slate-100">Form Pre-Check</motion.h1>
+        <motion.p className="text-[12px] font-medium mt-1 leading-relaxed max-w-[90%] text-on-surface-variant dark:text-slate-400">
+          I-scan bago pumila para makatipid ng oras. {/* FIX 4: Ensure text tokens have dark variants. */}
+        </motion.p>
       </header>
 
       {/* Transaction Type Selector */}
@@ -69,7 +70,11 @@ export function PreCheck() {
           <motion.button 
             key={category} 
             onClick={() => { setActiveCategory(category); if(selectedImage) setScanState('idle'); }} 
-            className={`whitespace-nowrap px-4 py-2.5 rounded-full text-[13px] font-extrabold transition-all flex-shrink-0 border ${activeCategory === category ? 'bg-[#E63946] text-white border-[#E63946] shadow-lg shadow-[#E63946]/20' : (isDark ? 'bg-[#162A45] text-blue-200/70 border-white/10 hover:bg-[#162A45]/80' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100')}`}
+            className={`whitespace-nowrap px-4 py-2.5 rounded-full text-[13px] font-extrabold transition-all flex-shrink-0 border ${
+              activeCategory === category
+                ? 'bg-[#E63946] text-white border-[#E63946] shadow-lg shadow-[#E63946]/20'
+                : 'bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30 hover:bg-surface-container-low dark:hover:bg-slate-700/50'
+            }`} /* FIX 4: Replace custom dark backgrounds with proper dark variants. */
           >
             {category}
           </motion.button>
@@ -95,11 +100,13 @@ export function PreCheck() {
                onClick={() => fileInputRef.current?.click()}
                className={`rounded-[24px] p-8 border-2 border-dashed flex flex-col items-center text-center cursor-pointer transition-colors group ${isDark ? 'bg-[#162A45]/40 border-white/20 hover:bg-[#162A45]/60' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
             >
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-4 group-hover:scale-110 transition-transform shadow-inner border ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200'}`}>📄</div>
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner border ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200'}`}>
+                <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>description</span>
+              </div>
               <h2 className={`font-bold text-[17px] mb-2 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>I-upload ang inyong Form</h2>
               <p className={`text-[11px] font-medium leading-relaxed max-w-[85%] ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Kuhanan ng malinaw na litrato ang iyong form. Hindi ise-save ang iyong larawan sa server.</p>
               <div className={`mt-5 px-5 py-2.5 rounded-full text-xs font-extrabold flex items-center gap-2 transition-colors ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-800 text-white hover:bg-gray-700'}`}>
-                <Camera size={14} /> Buksan ang Camera
+                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>photo_camera</span> Buksan ang Camera
               </div>
             </motion.div>
           ) : (
@@ -111,7 +118,7 @@ export function PreCheck() {
                <img src={selectedImage} alt="Form preview" className="w-full h-48 object-cover rounded-[18px]" />
                <div className="absolute top-4 right-4 flex gap-2">
                   <button onClick={resetForm} className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/80 transition-colors">
-                     <XCircle size={18} />
+                     <span className="material-symbols-outlined text-lg">close</span>
                   </button>
                </div>
                
@@ -121,7 +128,7 @@ export function PreCheck() {
                        onClick={handleScan}
                        className="w-full max-w-[200px] bg-[#E63946] text-white py-3.5 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(230,57,70,0.4)] hover:scale-105 transition-transform"
                      >
-                        <FileCheck2 size={18} /> I-scan Ngayon
+                        <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" } as any}>fact_check</span> I-scan Ngayon
                      </button>
                   </div>
                )}
@@ -152,12 +159,24 @@ export function PreCheck() {
                    className={`rounded-2xl p-3.5 border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm shadow-inner ${isDark ? 'bg-[#0A1626] border-white/5' : 'bg-gray-100 border-gray-200'}`}>{item.emoji}</div>
+                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm shadow-inner ${isDark ? 'bg-[#0A1626] border-white/5' : 'bg-gray-100 border-gray-200'}`}>
+                      <span className="material-symbols-outlined text-base">
+                        {item.id === 'medcert'
+                          ? 'medical_services'
+                          : item.id === 'signature'
+                            ? 'draw'
+                            : item.id === 'insurance'
+                              ? 'shield'
+                              : item.id === 'orcr'
+                                ? 'description'
+                                : 'person'}
+                      </span>
+                    </div>
                     <span className={`font-semibold text-[13px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.field}</span>
                   </div>
                   <div>
-                    {item.status === 'ok' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}><CheckCircle2 size={10} strokeWidth={3} /> OK</div>}
-                    {item.status === 'missing' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30' : 'bg-red-50 text-red-600 border-red-200'}`}><AlertCircle size={10} strokeWidth={3} /> Kulang!</div>}
+                    {item.status === 'ok' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span> OK</div>}
+                    {item.status === 'missing' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30' : 'bg-red-50 text-red-600 border-red-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>error</span> Kulang!</div>}
                   </div>
                 </motion.div>
               ))}
@@ -166,7 +185,7 @@ export function PreCheck() {
             {/* Scenario 9: Branch Specific Warning Section */}
             <div className={`border rounded-2xl p-4 mb-5 ${isDark ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
                <h4 className={`text-[13px] font-extrabold flex items-center gap-2 mb-2 ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>
-                  <AlertTriangle size={14} /> Heads Up sa mga Branch
+                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>warning</span> Heads Up sa mga Branch
                </h4>
                <p className={`text-[11px] font-medium leading-relaxed mb-3 ${isDark ? 'text-[#F59E0B]/80' : 'text-amber-800'}`}>Base sa huling mga ulat, madalas hanapin ang mga sumusunod sa mga kalapit na sangay kahit wala sa opisyal na listahan:</p>
                <div className="flex flex-col gap-2">
@@ -184,7 +203,9 @@ export function PreCheck() {
             {isAllOk ? (
                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
                  <div className={`border rounded-2xl p-4 flex flex-col items-center text-center gap-2 mb-4 ${isDark ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <div className="w-12 h-12 bg-[#10B981] rounded-full flex items-center justify-center text-white mb-1 shadow-lg shadow-[#10B981]/40"><CheckCircle2 strokeWidth={3} /></div>
+                    <div className="w-12 h-12 bg-[#10B981] rounded-full flex items-center justify-center text-white mb-1 shadow-lg shadow-[#10B981]/40">
+                      <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>check</span>
+                    </div>
                     <h4 className="text-[#10B981] font-extrabold text-[15px]">Handa na ang Form!</h4>
                     <p className={`text-[11px] font-medium leading-relaxed px-4 ${isDark ? 'text-[#10B981]/80' : 'text-emerald-700'}`}>Kumpleto ang mga kinakailangang detalye base sa aming pagsusuri.</p>
                  </div>
@@ -192,13 +213,15 @@ export function PreCheck() {
                    onClick={() => navigate('/queue')}
                    className="w-full bg-[#10B981] hover:bg-[#059669] text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98]"
                  >
-                   Pumunta sa Timer <ArrowRight size={18} strokeWidth={2.5} />
+                   Pumunta sa Timer <span className="material-symbols-outlined text-xl">arrow_forward</span>
                  </button>
                </motion.div>
             ) : (
                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
                  <div className={`border rounded-2xl p-4 mb-4 flex items-start gap-3 ${isDark ? 'bg-[#E63946]/10 border-[#E63946]/30' : 'bg-red-50 border-red-200'}`}>
-                   <div className={`p-1.5 rounded-full mt-0.5 flex-shrink-0 ${isDark ? 'bg-[#E63946]/20' : 'bg-red-100'}`}><XCircle size={18} className="text-[#E63946]" /></div>
+                   <div className={`p-1.5 rounded-full mt-0.5 flex-shrink-0 ${isDark ? 'bg-[#E63946]/20' : 'bg-red-100'}`}>
+                     <span className="material-symbols-outlined text-lg text-[#E63946]">cancel</span>
+                   </div>
                    <div>
                      <h4 className="text-[#E63946] font-extrabold text-[14px] mb-1">Hindi pa Handa ang Form</h4>
                      <p className={`text-[11px] font-medium leading-relaxed ${isDark ? 'text-[#E63946]/80' : 'text-red-700'}`}>May mga nakitang kulang na mahalagang detalye. Punan muna ang mga ito bago pumila sa LTO para iwas-abala.</p>
@@ -208,7 +231,7 @@ export function PreCheck() {
                    onClick={() => setScanState('idle')}
                    className={`w-full py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 border transition-all active:scale-[0.98] ${isDark ? 'bg-[#162A45] border-white/20 text-white hover:bg-[#162A45]/80' : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'}`}
                  >
-                   <RefreshCw size={18} strokeWidth={2.5} /> I-scan Ulit
+                   <span className="material-symbols-outlined text-xl">refresh</span> I-scan Ulit
                  </button>
                </motion.div>
             )}

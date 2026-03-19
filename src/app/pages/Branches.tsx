@@ -1,45 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MapPin, CreditCard, AlertTriangle, Clock, Maximize2, Minimize2, Navigation, ChevronRight, Users, Info } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
 import { strings } from '../../locales/strings.fil';
-
-const BRANCHES = [
-  { 
-    id: '1', name: 'LTO Diliman District', address: 'East Avenue, QC', statusColor: 'red' as const, 
-    badges: [{ text: 'May Plastic', type: 'success' as const }], 
-    walkinAvgSeconds: 12000, 
-    waitTimeWalkin: '3h 20m', waitTimeAppointment: '45m', 
-    isPuno: true, highDemand: true, 
-    activeRequirements: [{ tag: 'Updated MedCert', count: 12 }, { tag: 'Short bond only', count: 5 }],
-    prequeueWait: 45
-  },
-  { 
-    id: '2', name: 'LTO Novaliches', address: 'Robinsons Novaliches, QC', statusColor: 'green' as const, 
-    badges: [{ text: 'May Plastic', type: 'success' as const }], 
-    walkinAvgSeconds: 6000,
-    waitTimeWalkin: '1h 40m', waitTimeAppointment: '20m', 
-    isPuno: false, highDemand: false, 
-    activeRequirements: [],
-    prequeueWait: 15
-  },
-  { 
-    id: '3', name: 'QC Licensing Center', address: 'P. Tuazon Blvd, Cubao', statusColor: 'amber' as const, 
-    badges: [{ text: 'Wala Plastic', type: 'danger' as const }], 
-    walkinAvgSeconds: 8500,
-    waitTimeWalkin: '2h 20m', waitTimeAppointment: '50m', 
-    isPuno: false, highDemand: true, 
-    activeRequirements: [{ tag: 'Extra photocopy', count: 3 }],
-    prequeueWait: 30
-  }
-];
-
-const MAP_POINTS = [
-  { id: '1', top: '25%', left: '20%', color: '#10B981', branch: BRANCHES[1], delay: '0s' },
-  { id: '2', top: '40%', left: '55%', color: '#E63946', branch: BRANCHES[0], delay: '0.4s' },
-  { id: '3', top: '30%', left: '75%', color: '#F59E0B', branch: BRANCHES[2], delay: '0.8s' },
-];
+import { Branch, getBranchesMock } from '../data/branches';
+import { BranchDetailsSheet } from '../components/BranchDetailsSheet';
+import { vibrateSafe } from '../utils/haptics';
+import { SkeletonShimmer } from '../components/SkeletonShimmer';
 
 const FILTERS = ['Lahat', 'May Plastic', 'Mabilis', 'May Flag'];
 
@@ -49,26 +16,45 @@ export function Branches() {
 
   const [activeFilter, setActiveFilter] = useState('Lahat');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isMapExpanded, setMapExpanded] = useState(false);
-  const [selectedMapNode, setSelectedMapNode] = useState<string | null>(null);
+  const [isLoading, setLoading] = useState(true); // IMPROVEMENT 3: Skeleton loading while branches are "fetching".
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null); // FIX 5: Selected branch for the details bottom sheet.
+  const [isDetailsOpen, setDetailsOpen] = useState(false); // FIX 5: Bottom sheet open state.
   
   // Scenario 5: Intent State
   const [intentBranches, setIntentBranches] = useState<Record<string, boolean>>({});
 
-  // Filter Logic
-  const filteredBranches = BRANCHES.filter(b => {
-    if (searchQuery.length >= 2) {
-      const q = searchQuery.toLowerCase();
-      if (!b.name.toLowerCase().includes(q) && !b.address.toLowerCase().includes(q)) return false;
-    }
-    if (activeFilter === 'May Plastic' && !b.badges.find(badge => badge.text.includes('May Plastic'))) return false;
-    // Scenario 10: "Mabilis" filter requires walkin < 7200 seconds (2 hours)
-    if (activeFilter === 'Mabilis' && b.walkinAvgSeconds >= 7200) return false;
-    if (activeFilter === 'May Flag' && !b.badges.find(badge => badge.text.includes('May Anomaly'))) return false;
-    return true;
-  });
+  useEffect(() => {
+    // IMPROVEMENT 3: Async-load the shared branches list for consistent flags (PUNO/anomaly/etc).
+    let mounted = true;
+    setLoading(true);
+    getBranchesMock()
+      .then((data) => {
+        if (!mounted) return;
+        setBranches(data);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  const isBranchVisible = (id: string) => filteredBranches.some(b => b.id === id);
+  // Filter Logic
+  const filteredBranches = useMemo(() => {
+    return branches.filter((b) => {
+      if (searchQuery.length >= 2) {
+        const q = searchQuery.toLowerCase();
+        if (!b.name.toLowerCase().includes(q) && !b.address.toLowerCase().includes(q)) return false;
+      }
+      if (activeFilter === 'May Plastic' && !b.hasPlasticCards) return false; // FIX 7: Use shared plastic flag.
+      if (activeFilter === 'Mabilis' && b.walkinAvgMinutes >= 120) return false; // FIX 7: "Mabilis" means <2h walk-in.
+      if (activeFilter === 'May Flag' && !b.hasActiveAnomaly) return false; // IMPROVEMENT 2: Use shared anomaly flag.
+      return true;
+    });
+  }, [activeFilter, branches, searchQuery]);
 
   const toggleIntent = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -77,123 +63,273 @@ export function Branches() {
     fetch(`/api/branches/${id}/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_hash: 'device-12345' }) }).catch(()=>{});
   };
 
+  const featured = filteredBranches[0];
+  const others = filteredBranches.slice(1);
+
+  const openDetails = (b: Branch) => {
+    setSelectedBranch(b); // FIX 5: Open the details bottom sheet with full branch info.
+    setDetailsOpen(true);
+  };
+
+  const goQueue = (b: Branch) => {
+    vibrateSafe(100); // IMPROVEMENT 5: Haptic feedback on "Pumila Dito" (100ms).
+    navigate(`/queue?branch=${encodeURIComponent(b.id)}`); // FIX 6: Pass branch id to Queue screen for preselection.
+  };
+
+  const waitTone = (mins: number) => {
+    // FIX 6/7: Shared wait color rules (green <2h, amber 2–3.5h, red >3.5h).
+    if (mins < 120) return 'text-tertiary';
+    if (mins <= 210) return 'text-amber-600';
+    return 'text-error';
+  };
+
   return (
     <>
-      {/* Search Header / Map code remains mostly original */}
-      <header className="px-6 pb-4">
-        <div className="flex items-center justify-between">
-          <motion.h1 className={`text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Mga Branch
-          </motion.h1>
-           <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
-             <ChevronRight className="rotate-180" size={18} />
-           </button>
-        </div>
-      </header>
+      <BranchDetailsSheet open={isDetailsOpen} branch={selectedBranch} onClose={() => setDetailsOpen(false)} />
 
-      {/* Map View */}
-      <div className="px-6 mb-5">
-        <motion.div animate={{ height: isMapExpanded ? 350 : 180 }} className={`relative w-full rounded-3xl overflow-hidden border shadow-inner ${isDark ? 'bg-[#0A1626] border-white/10' : 'bg-gray-100 border-gray-300'}`}>
-           {/* Dots */}
-           {MAP_POINTS.map(pt => {
-             const isDimmed = !isBranchVisible(pt.branch.id) && (searchQuery.length >= 2 || activeFilter !== 'Lahat');
-             return (
-               <div key={pt.id} className="absolute" style={{ top: pt.top, left: pt.left }}>
-                 <button onClick={() => setSelectedMapNode(pt.id)} className={`relative transition-opacity duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
-                   <div className="w-4 h-4 rounded-full animate-pulse border-2 border-white/80" style={{ backgroundColor: pt.branch.isPuno ? '#b32b37' : pt.color, animationDelay: pt.delay }} />
-                 </button>
-               </div>
-             );
-           })}
-        </motion.div>
+      {/* Search Bar */}
+      <div className="relative group mt-4">
+        <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+          <span className="material-symbols-outlined text-outline">search</span>
+        </div>
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-surface-container-lowest border-none rounded-full py-4 pl-14 pr-6 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary-fixed shadow-sm transition-all duration-300"
+          placeholder="Maghanap ng Sanga (e.g. Quezon City)"
+          type="text"
+        />
       </div>
 
-      <div className="pl-6 mb-6 flex gap-2.5 overflow-x-auto pb-2 pr-6">
+      {/* Category Chips */}
+      <div className="flex gap-3 mt-6 overflow-x-auto pb-2 scrollbar-hide">
         {FILTERS.map((filter) => (
-          <motion.button key={filter} onClick={() => setActiveFilter(filter)} className={`whitespace-nowrap px-4 py-2 rounded-full text-[13px] font-extrabold transition-all border ${activeFilter === filter ? 'bg-[#E63946] text-white border-[#E63946] shadow-lg shadow-[#E63946]/20' : (isDark ? 'bg-[#162A45] text-blue-200/70 border-white/10' : 'bg-white text-gray-600 border-gray-200')}`}>
+          <button
+            key={filter}
+            onClick={() => {
+              vibrateSafe(50); // IMPROVEMENT 5: Haptic feedback on filter chip selection (50ms).
+              setActiveFilter(filter);
+            }}
+            className={
+              activeFilter === filter
+                ? 'px-6 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm whitespace-nowrap shadow-md shadow-primary/20 transition-transform active:scale-95'
+                : 'px-6 py-2.5 rounded-full bg-surface-container-high text-on-surface-variant font-semibold text-sm whitespace-nowrap hover:bg-surface-variant transition-colors'
+            }
+          >
             {filter}
-          </motion.button>
+          </button>
         ))}
       </div>
 
-      <div className="px-6 flex flex-col gap-5 pb-8">
-        {filteredBranches.map((branch) => {
-          const isIntent = intentBranches[branch.id];
+      {/* IMPROVEMENT 4: Empty state when no branches match search/filter. */}
+      {!isLoading && filteredBranches.length === 0 && (
+        <div className="py-14 flex flex-col items-center justify-center text-center">
+          <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-400">search_off</span>
+          <div className="mt-3 font-bold text-on-surface dark:text-slate-100">Walang nahanap na branch</div>
+          <div className="text-sm text-on-surface-variant dark:text-slate-400 mt-1">Subukan ang ibang keyword</div>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="mt-5 px-6 py-3 rounded-full bg-primary text-white font-bold text-sm shadow-md shadow-primary/20 active:scale-95 transition-transform"
+          >
+            I-clear ang Search {/* IMPROVEMENT 4: Clear input to restore list. */}
+          </button>
+        </div>
+      )}
 
-          return (
-            <div key={branch.id} className="relative w-full rounded-[24px] overflow-hidden group">
-               <motion.div className={`relative w-full z-10 rounded-[24px] p-5 border flex flex-col shadow-sm ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200'}`}>
-                 
-                 {/* Scenario 6: PUNO Banner Override */}
-                 {branch.isPuno && (
-                   <div className="absolute top-0 left-0 right-0 bg-red-900 border-b border-red-700 p-2 text-center text-red-50 font-black text-[11px] tracking-widest uppercase">
-                     {strings.punoBanner}
-                   </div>
-                 )}
-
-                 <div className={`flex justify-between items-start ${branch.isPuno ? 'mt-8' : ''}`}>
-                    <div>
-                      <h3 className={`font-black text-[17px] mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{branch.name}</h3>
-                      <p className={`text-xs font-medium flex items-center gap-1 mb-2 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><MapPin size={12} /> {branch.address}</p>
-                    </div>
-                    {/* Scenario 5: Intent Button */}
-                    <button onClick={(e) => toggleIntent(branch.id, e)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors flex items-center gap-1 ${isIntent ? 'bg-[#3B82F6] text-white border-[#3B82F6]' : (isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-gray-100 border-gray-200 text-gray-900')}`}>
-                       <Navigation size={10} /> {isIntent ? 'Papunta na' : strings.intentToggle}
-                    </button>
-                 </div>
-
-                 {/* Scenario 5: High Demand Pill */}
-                 {branch.highDemand && !branch.isPuno && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 mb-4">
-                       <Users size={14} className="flex-shrink-0" /> {strings.highDemandWarning}
-                    </div>
-                 )}
-
-                 {/* Scenario 9: Community Requirements Feed Warning */}
-                 {branch.activeRequirements.length > 0 && (
-                    <div className={`px-3 py-2 rounded-xl text-xs font-extrabold flex flex-col gap-1 mb-4 ${isDark ? 'bg-[#F59E0B]/10 border border-[#F59E0B]/30 text-[#F59E0B]' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
-                       <div className="flex items-center gap-2 mb-1"><AlertTriangle size={14}/> <span>Heads Up: Mga dagdag na hinihingi</span></div>
-                       {branch.activeRequirements.map(req => (
-                         <span key={req.tag} className="ml-5 font-medium opacity-90">• {strings.requirementsWarning.replace('{count}', req.count.toString()).replace('{req}', req.tag)}</span>
-                       ))}
-                    </div>
-                 )}
-
-                 <div className="flex flex-wrap gap-2 mb-4">
-                   {branch.badges.map((b, i) => (
-                     <div key={i} className={`px-2 py-1 rounded-md text-[10px] font-extrabold border flex items-center gap-1 ${isDark ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
-                       <CreditCard size={10} /> {b.text.toUpperCase()}
-                     </div>
-                   ))}
-                 </div>
-
-                 <div className={`flex flex-col gap-2 p-3 rounded-2xl ${isDark ? 'bg-[#0A1626]' : 'bg-gray-50'}`}>
-                   {/* Scenario 11: Pre-queue stats */}
-                   {branch.prequeueWait > 0 && (
-                     <div className={`text-[10px] uppercase font-bold tracking-widest flex items-center gap-1 ${isDark ? 'text-blue-300' : 'text-blue-600'}`}>
-                        <Info size={10} /> {strings.prequeueStats.replace('{minutes}', branch.prequeueWait.toString())}
-                     </div>
-                   )}
-                   {/* Scenario 10: Dual Wait Time Lines */}
-                   <div className="flex justify-between items-center">
-                     <span className={`text-xs font-extrabold ${isDark ? 'text-white' : 'text-gray-900'}`}><Clock size={12} className="inline mr-1" /> Walk-in</span>
-                     <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{branch.waitTimeWalkin}</span>
-                   </div>
-                   <div className="flex justify-between items-center opacity-70">
-                     <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}><CreditCard size={12} className="inline mr-1" /> Appointment</span>
-                     <span className={`font-black text-xs ${isDark ? 'text-white' : 'text-gray-900'}`}>{branch.waitTimeAppointment}</span>
-                   </div>
-                 </div>
-
-                 {/* Action Button */}
-                 <button onClick={() => navigate('/queue')} className="w-full mt-4 bg-[#E63946] text-white py-3.5 rounded-xl font-black text-sm active:scale-[0.98]">
-                    {branch.isPuno ? 'Tingnan Details' : 'Pumila Dito'}
-                 </button>
-               </motion.div>
+      {/* Featured Branch */}
+      {featured && (
+        <div className="mt-8 relative">
+          <div
+            className="bg-surface-container-lowest dark:bg-slate-800 rounded-lg overflow-hidden shadow-[0_8px_32px_rgba(25,28,30,0.06)] border border-outline-variant/10 dark:border-slate-700/30 group cursor-pointer"
+            onClick={() => openDetails(featured)} // FIX 5: Card tap opens details (not a silent no-op).
+          >
+            <div className="relative h-48 w-full overflow-hidden">
+              <img
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                alt="LTO Branch"
+                src={featured.thumbnailUrl} // FIX 7: Use shared thumbnail so rows/cards stay consistent.
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+              {featured.is_puno && (
+                <div className="absolute top-4 left-4 bg-error text-on-error px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                  {strings.punoBanner}
+                </div>
+              )}
             </div>
-          );
-        })}
-      </div>
+
+            <div className="p-6">
+              <div className="flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold tracking-tight text-on-surface dark:text-slate-100">{featured.name}</h2>
+                  <p className="text-on-surface-variant dark:text-slate-400 text-sm flex items-center gap-1.5 mt-1">
+                    <span className="material-symbols-outlined text-base">location_on</span>
+                    {featured.address}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => toggleIntent(featured.id, e)}
+                  className={`shrink-0 px-3 py-1 rounded-md border text-[10px] font-bold uppercase tracking-tighter flex items-center gap-1 ${
+                    intentBranches[featured.id]
+                      ? 'bg-tertiary-container/10 text-tertiary border-outline-variant/10 dark:border-slate-700/30'
+                      : 'bg-surface-container-low dark:bg-slate-700/50 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                    navigation
+                  </span>
+                  {intentBranches[featured.id] ? 'Papunta na' : strings.intentToggle}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <div className="bg-surface-container-low dark:bg-slate-700/50 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                  <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Walk-in</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-xl font-extrabold ${waitTone(featured.walkinAvgMinutes)}`}>{Math.round(featured.walkinAvgMinutes / 60 * 10) / 10}h</span> {/* FIX 7: Use shared minutes-based value. */}
+                    <span className={`material-symbols-outlined ${waitTone(featured.walkinAvgMinutes)} text-lg`}>trending_up</span>
+                  </div>
+                </div>
+                <div className="bg-surface-container-low dark:bg-slate-700/50 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                  <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Appointment</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-xl font-extrabold ${waitTone(featured.appointmentAvgMinutes)}`}>{featured.appointmentAvgMinutes}m</span> {/* FIX 7: Use shared appointment average minutes. */}
+                    <span className={`material-symbols-outlined ${waitTone(featured.appointmentAvgMinutes)} text-lg`}>trending_down</span>
+                  </div>
+                </div>
+              </div>
+
+              {featured.is_puno ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full mt-8 py-4 rounded-full bg-[#6B1F1F] text-white font-extrabold text-sm opacity-90 cursor-not-allowed"
+                >
+                  PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO disables actions everywhere and shows the same banner/state. */}
+                </button>
+              ) : (
+                <div className="mt-8 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDetails(featured);
+                    }}
+                className="flex-1 py-3 rounded-full border border-primary text-primary font-bold text-sm bg-transparent active:scale-95 transition-transform"
+                  >
+                    Tingnan Details {/* FIX 6: Details button opens the full info bottom sheet. */}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goQueue(featured);
+                    }}
+                    className="flex-1 py-3 rounded-full bg-primary text-white font-bold text-sm shadow-md shadow-primary/20 active:scale-95 transition-transform"
+                  >
+                    Pumila Dito {/* FIX 6: Queue redirect is now a separate primary action. */}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="mt-8 space-y-4">
+          <SkeletonShimmer className="h-[340px] w-full" /> {/* IMPROVEMENT 3: Skeleton for featured branch card while loading. */}
+          <SkeletonShimmer className="h-[120px] w-full" /> {/* IMPROVEMENT 3: Skeleton for branch row while loading. */}
+          <SkeletonShimmer className="h-[120px] w-full" /> {/* IMPROVEMENT 3: Skeleton for branch row while loading. */}
+        </div>
+      )}
+
+      {/* Other branches list */}
+      {others.length > 0 && (
+        <div className="mt-12 mb-8">
+          <h3 className="text-lg font-bold text-on-surface px-1 mb-4">Iba pang Sanga Malapit Sayo</h3>
+          <div className="space-y-4">
+            {others.map((b) => (
+              <div
+                key={b.id}
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-surface-container-low dark:bg-slate-700/50 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer group"
+                onClick={() => openDetails(b)} // FIX 5: Row tap opens details.
+              >
+                <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high">
+                  <img
+                    className="w-full h-full object-cover"
+                    alt="LTO Branch"
+                    src={b.thumbnailUrl} // FIX 7: Use shared thumbnail.
+                  />
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-on-surface dark:text-slate-100 truncate">{b.name}</h4>
+                      <p className="text-xs text-on-surface-variant dark:text-slate-400 truncate">
+                        {b.address} • {b.distanceKm.toFixed(1)} km {/* FIX 7: Show address + distance on list rows. */}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`block text-sm font-black ${waitTone(b.walkinAvgMinutes)}`}>{Math.round(b.walkinAvgMinutes / 60 * 10) / 10}h</span>
+                      <span className="text-[9px] font-bold uppercase text-outline">Wait</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`px-3 py-1 rounded-full text-[10px] font-extrabold border ${
+                        b.hasPlasticCards ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'
+                      }`}
+                    >
+                      {b.hasPlasticCards ? 'May Plastic' : 'Wala Plastic'} {/* IMPROVEMENT 7: Plastic status pill on list rows. */}
+                    </span>
+                    {b.prequeueMinutesBeforeOpen !== undefined && (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold border bg-amber-500/10 text-amber-700 border-amber-500/25">
+                        Pila: ~{b.prequeueMinutesBeforeOpen}m bago bukas {/* IMPROVEMENT 7: Pre-queue estimate pill on list rows. */}
+                      </span>
+                    )}
+                  </div>
+
+                  {b.is_puno ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-3 rounded-full bg-[#6B1F1F] text-white font-extrabold text-xs opacity-90 cursor-not-allowed"
+                    >
+                      PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO state disables row actions too. */}
+                    </button>
+                  ) : (
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetails(b);
+                        }}
+                        className="flex-1 py-2 rounded-full border border-primary text-primary font-bold text-xs bg-transparent active:scale-95 transition-transform"
+                      >
+                        Tingnan Details {/* FIX 6/7: List rows now match featured detail-level with actions. */}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goQueue(b);
+                        }}
+                        className="flex-1 py-2 rounded-full bg-primary text-white font-bold text-xs shadow-md shadow-primary/20 active:scale-95 transition-transform"
+                      >
+                        Pumila Dito {/* FIX 6/7: Separate queue redirect button on rows. */}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

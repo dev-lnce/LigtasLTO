@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, CheckCircle2, Clock, CreditCard, Activity, FileText, AlertTriangle, Users, ChevronDown, Check, X, MapPin } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import confetti from 'canvas-confetti';
 import { CHECK_GEOFENCE, IS_DURING_LUNCH_BREAK, HANDLE_HOLD_TO_SUBMIT } from '../../utils/scenarioGuards';
 import { strings } from '../../locales/strings.fil';
@@ -59,6 +58,7 @@ const DEMO_BRANCHES: BranchOption[] = (demoBranches || []).map((b: any) => ({
 export function Queue() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [isBranchPickerOpen, setBranchPickerOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<BranchOption>(REAL_BRANCHES[0]);
@@ -98,6 +98,17 @@ export function Queue() {
 
   // Handle Mount / Scenario 4 (Recovery) & Background Sync Listener
   useEffect(() => {
+    // FIX 6: Preselect branch when arriving from "Pumila Dito" using URL param (?branch=...).
+    try {
+      const params = new URLSearchParams(location.search);
+      const branchId = params.get('branch');
+      if (branchId) {
+        const all = [...REAL_BRANCHES, ...DEMO_BRANCHES];
+        const match = all.find((b) => b.id === branchId);
+        if (match) setSelectedBranch(match);
+      }
+    } catch {}
+
     const checkPendingSession = async () => {
       try {
         const res = await fetch(`/api/sessions/pending?device_hash=${DEVICE_HASH}`);
@@ -131,7 +142,7 @@ export function Queue() {
       navigator.serviceWorker.removeEventListener('message', swMessageListener);
       window.removeEventListener('online', flushOfflineQueue);
     };
-  }, []);
+  }, [location.search]);
 
   // Scenario 1: Offline submission syncer
   const flushOfflineQueue = async () => {
@@ -306,6 +317,7 @@ export function Queue() {
     setIsSubmitting(false);
     setSubmitModalOpen(false);
     setTimerState('success');
+    try { navigator.vibrate?.(200); } catch {} // IMPROVEMENT 5: Haptic feedback on successful timer submission (200ms).
     confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
   };
 
@@ -313,9 +325,9 @@ export function Queue() {
     if (!recoverySession) return null;
     return (
       <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
-        <div className={`w-full max-w-sm rounded-[24px] p-6 shadow-2xl ${isDark ? 'bg-[#0D1F35] border border-white/10' : 'bg-white'}`}>
-          <h3 className={`font-black text-lg mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Session Recovered</h3>
-          <p className={`text-sm font-medium mb-6 ${isDark ? 'text-blue-200/70' : 'text-gray-600'}`}>
+        <div className="w-full max-w-sm rounded-[24px] p-6 shadow-2xl bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30">
+          <h3 className="font-black text-lg mb-2 text-on-surface dark:text-slate-100">Session Recovered</h3>
+          <p className="text-sm font-medium mb-6 text-on-surface-variant dark:text-slate-400">
             {strings.recoveryModalTitle.replace('{time}', new Date(recoverySession.started_at).toLocaleTimeString())}
           </p>
           <input type="time" className="w-full p-4 rounded-xl border mb-4 font-bold" />
@@ -330,12 +342,12 @@ export function Queue() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-6 space-y-6 pb-20">
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Branch</label>
-        <button onClick={() => setBranchPickerOpen(true)} className={`w-full px-4 py-3.5 rounded-2xl border flex items-center justify-between shadow-sm transition-colors ${isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200'}`}>
-          <span className={`font-bold text-[15px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</span>
-          <ChevronDown size={18} className={isDark ? 'text-blue-200/50' : 'text-gray-400'} />
+        <button onClick={() => setBranchPickerOpen(true)} className="w-full px-4 py-3.5 rounded-2xl border border-outline-variant/10 dark:border-slate-700/30 flex items-center justify-between shadow-sm transition-colors bg-surface-container-lowest dark:bg-slate-800">
+          <span className="font-bold text-[15px] text-on-surface dark:text-slate-100">{selectedBranch.name}</span>
+          <span className="material-symbols-outlined text-on-surface-variant">expand_more</span>
         </button>
-        <p className={`text-[11px] font-medium mt-2 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
-          <MapPin size={10} /> {selectedBranch.address}
+        <p className="text-[11px] font-medium mt-2 flex items-center gap-1 text-on-surface-variant dark:text-slate-400">
+          <span className="material-symbols-outlined text-sm">location_on</span> {selectedBranch.address}
         </p>
       </div>
 
@@ -354,7 +366,7 @@ export function Queue() {
            value={queueNumber}
            onChange={e => setQueueNumber(e.target.value)}
            placeholder="Halimbawa: A-142" 
-           className={`w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm ${isDark ? 'bg-[#0A1626] border-white/10 text-white placeholder:text-blue-200/30' : 'bg-gray-100 border-gray-200 text-gray-900'}`} 
+           className="w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm bg-surface-container-lowest dark:bg-slate-800 border-outline-variant/10 dark:border-slate-700/30 text-on-surface dark:text-slate-100 placeholder:text-on-surface-variant/60 dark:placeholder:text-slate-400/60" /* FIX 4: Use dark variants instead of custom dark-only colors. */
         />
       </div>
 
@@ -378,7 +390,12 @@ export function Queue() {
          <label htmlFor="companion" className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.companionToggle}</label>
       </div>
 
-      {geofenceError && <div className="text-red-500 text-xs font-bold mt-2"><MapPin size={12} className="inline mr-1"/>{geofenceError}</div>}
+      {geofenceError && (
+        <div className="text-error text-xs font-bold mt-2 flex items-center gap-1">
+          <span className="material-symbols-outlined text-sm">location_off</span>
+          {geofenceError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 mt-4">
         <button
@@ -447,7 +464,11 @@ export function Queue() {
                      className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${m.timestamp ? 'bg-[#10B981]/10 border-[#10B981] text-[#10B981]' : (isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900')}`}
                   >
                      <span className="font-extrabold text-[14px]">{m.label}</span>
-                     {m.timestamp ? <CheckCircle2 size={20} className="text-[#10B981]" /> : <div className="w-5 h-5 rounded-full border-2 border-gray-400/30" />}
+                     {m.timestamp ? (
+                       <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
+                     ) : (
+                       <div className="w-5 h-5 rounded-full border-2 border-gray-400/30" />
+                     )}
                   </button>
                ))}
             </div>
@@ -482,8 +503,8 @@ export function Queue() {
 
   const renderSuccess = () => (
     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="px-6 flex flex-col items-center justify-center text-center mt-10 pb-20">
-      <div className="w-24 h-24 bg-[#10B981] rounded-full flex items-center justify-center text-white mb-6 shadow-[0_0_40px_rgba(16,185,129,0.5)]">
-        <Check size={48} strokeWidth={3} />
+      <div className="w-24 h-24 bg-tertiary rounded-full flex items-center justify-center text-white mb-6 shadow-[0_0_40px_rgba(0,104,96,0.35)]">
+        <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>check</span>
       </div>
       <h2 className={`font-black tracking-tight text-2xl mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Maraming Salamat!</h2>
       <p className={`font-medium text-sm px-4 mb-4 ${isDark ? 'text-blue-200/70' : 'text-gray-500'}`}>Ang iyong ulat ay malaking tulong sa libu-libong motorista.</p>
@@ -538,7 +559,9 @@ export function Queue() {
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className={`font-black tracking-tight text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Pumili ng Branch</h3>
-                <button onClick={() => setBranchPickerOpen(false)} className={`p-2 rounded-full ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'}`}><X size={16} /></button>
+                <button onClick={() => setBranchPickerOpen(false)} className="p-2 rounded-full bg-surface-container-low text-on-surface">
+                  <span className="material-symbols-outlined text-base">close</span>
+                </button>
               </div>
 
               <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-3">
@@ -561,7 +584,7 @@ export function Queue() {
                             <div className="min-w-0">
                               <div className="font-extrabold text-[14px] truncate">{b.name}</div>
                               <div className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
-                                <MapPin size={10} /> <span className="truncate">{b.address}</span>
+                                <span className="material-symbols-outlined text-sm">location_on</span> <span className="truncate">{b.address}</span>
                               </div>
                             </div>
                             {b.stats?.grade && (
@@ -601,7 +624,7 @@ export function Queue() {
                       >
                         <div className="font-extrabold text-[14px]">{b.name}</div>
                         <div className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
-                          <MapPin size={10} /> {b.address}
+                          <span className="material-symbols-outlined text-sm">location_on</span> {b.address}
                         </div>
                       </button>
                     ))}
@@ -616,7 +639,7 @@ export function Queue() {
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
-            <ArrowLeft size={18} />
+            <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div>
             <motion.h1 className={`text-2xl font-black tracking-tight leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -646,12 +669,16 @@ export function Queue() {
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className={`font-black tracking-tight text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Review & Submit</h3>
-                <button onClick={() => setSubmitModalOpen(false)} className={`p-2 rounded-full ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'}`}><X size={18} /></button>
+                <button onClick={() => setSubmitModalOpen(false)} className="p-2 rounded-full bg-surface-container-low text-on-surface">
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto pr-2 pb-6 space-y-6">
                 <div>
-                  <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><Clock size={12} /> Confirm Wait Time</label>
+                  <label className="text-[11px] font-bold uppercase tracking-widest mb-2 block flex items-center gap-1.5 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-sm">schedule</span> Confirm Wait Time
+                  </label>
                   <div className={`font-mono text-3xl font-black flex items-center gap-2 ${getTimerColor()}`}>
                     {formatTime(seconds)}
                   </div>
@@ -660,7 +687,9 @@ export function Queue() {
                 {/* Question */}
                 {!isPreQueue && (
                   <div>
-                    <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}><CreditCard size={12} /> May nakuha ka bang Plastic Card?</label>
+                    <label className="text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 text-on-surface-variant">
+                      <span className="material-symbols-outlined text-sm">credit_card</span> May nakuha ka bang Plastic Card?
+                    </label>
                     <div className="flex gap-3">
                       <button onClick={() => setHasPlasticReview(true)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === true ? 'bg-[#10B981] border-[#10B981] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Oo, May Plastic</span></button>
                       <button onClick={() => setHasPlasticReview(false)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === false ? 'bg-[#E63946] border-[#E63946] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Wala, Paper lang</span></button>

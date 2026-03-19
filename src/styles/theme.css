@@ -124,8 +124,12 @@
     @apply border-border outline-ring/50;
   }
 
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-surface text-on-surface font-sans;
   }
 
   /**
@@ -177,5 +181,48 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+}
+
+@layer utilities {
+  .main-hero-gradient {
+    background: linear-gradient(135deg, #b7102a 0%, #db313f 100%);
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    background: rgb(229 231 235 / 0.65);
+  }
+
+  .dark .skeleton-shimmer {
+    background: rgb(51 65 85 / 0.35);
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: shimmer 1.5s ease-in-out infinite; /* IMPROVEMENT 3: 1.5s shimmer sweep left-to-right. */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
