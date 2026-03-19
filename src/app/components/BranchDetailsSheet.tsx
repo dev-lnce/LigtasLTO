@@ -64,13 +64,13 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
       />
 
       <div
-        className={`absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-surface-container-lowest dark:bg-slate-800 rounded-t-[24px] border-t border-outline-variant/10 dark:border-slate-700/30 shadow-2xl transition-transform duration-[350ms] ease-out ${
+        className={`absolute inset-x-0 bottom-0 mx-auto w-full max-w-2xl bg-surface-container-lowest dark:bg-slate-900 rounded-t-[24px] border-t border-outline-variant/10 dark:border-slate-700/30 shadow-2xl transition-transform duration-[350ms] ease-out ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
         <div className="flex items-center justify-between px-6 pt-3 pb-2">
           <div className="w-full flex justify-center">
-            <div className="w-12 h-1.5 bg-slate-400/30 rounded-full" /> {/* FIX 5: Standard centered drag handle pill. */}
+            <div className="w-12 h-1.5 bg-slate-400/30 dark:bg-slate-600 rounded-full" /> {/* FIX 5: Standard centered drag handle pill. */}
           </div>
           <button
             type="button"
@@ -130,7 +130,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
           </div>
 
           {/* Section 3 — Heads Up Card */}
-          <div className="mt-6 border rounded-2xl p-4 bg-amber-500/5 border-amber-500/30">
+          <div className="mt-6 border rounded-2xl p-4 bg-amber-500/5 dark:bg-amber-950/60 border-amber-500/30 dark:border-amber-700">
             <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-extrabold text-[13px]">
               <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                 warning
@@ -154,7 +154,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
           </div>
 
           {/* Section 4 — Wait Time Breakdown */}
-          <div className="mt-6 bg-surface-container-low dark:bg-slate-700/50 rounded-2xl p-4 border border-outline-variant/10 dark:border-slate-700/30">
+          <div className="mt-6 bg-surface-container-low dark:bg-slate-800 rounded-2xl p-4 border border-outline-variant/10 dark:border-slate-700/30">
             <div className="font-extrabold text-[13px] text-on-surface dark:text-slate-100 mb-3">Wait Time Breakdown</div>
             <div className="flex items-center justify-between py-2">
               <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400">Walk-in average</div>
@@ -174,7 +174,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
 
           {/* Section 5 — Pre-Queue Info */}
           {branch.prequeueMinutesBeforeOpen !== undefined && (
-            <div className="mt-6 border rounded-2xl p-4 bg-amber-500/10 border-amber-500/30">
+            <div className="mt-6 border rounded-2xl p-4 bg-amber-500/10 dark:bg-amber-950/50 border-amber-500/30">
               <div className="font-extrabold text-[13px] text-amber-700 dark:text-amber-400 mb-1">Pre-Queue Info</div>
               <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">
                 Karaniwan, {branch.prequeueMinutesBeforeOpen} minuto ang pila bago pa man mag-bukas. {/* FIX 5: Conditional pre-queue card. */}
@@ -189,7 +189,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
               {last5.map((r) => (
                 <div
                   key={r.id}
-                  className={`rounded-2xl p-3 border bg-surface-container-lowest dark:bg-slate-800 border-outline-variant/10 dark:border-slate-700/30 flex items-center justify-between gap-3 ${
+                  className={`rounded-2xl p-3 border bg-surface-container-lowest dark:bg-slate-700/50 border-outline-variant/10 dark:border-slate-700/30 flex items-center justify-between gap-3 ${
                     r.isAnomaly ? 'ring-1 ring-error/30' : ''
                   }`}
                 >

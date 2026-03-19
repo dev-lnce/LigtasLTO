@@ -95,7 +95,7 @@ export function Branches() {
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-surface-container-lowest border-none rounded-full py-4 pl-14 pr-6 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary-fixed shadow-sm transition-all duration-300"
+          className="w-full bg-surface-container-lowest dark:bg-slate-800 border-none rounded-full py-4 pl-14 pr-6 text-on-surface dark:text-slate-100 placeholder:text-outline dark:placeholder-slate-500 focus:ring-2 focus:ring-primary-fixed dark:focus:ring-slate-500 shadow-sm transition-all duration-300"
           placeholder="Maghanap ng Sanga (e.g. Quezon City)"
           type="text"
         />
@@ -112,8 +112,8 @@ export function Branches() {
             }}
             className={
               activeFilter === filter
-                ? 'px-6 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm whitespace-nowrap shadow-md shadow-primary/20 transition-transform active:scale-95'
-                : 'px-6 py-2.5 rounded-full bg-surface-container-high text-on-surface-variant font-semibold text-sm whitespace-nowrap hover:bg-surface-variant transition-colors'
+                ? 'px-6 py-2.5 rounded-full bg-[#E63946] text-white font-bold text-sm whitespace-nowrap shadow-md shadow-[#E63946]/20 transition-transform active:scale-95'
+                : 'px-6 py-2.5 rounded-full bg-surface-container-high dark:bg-slate-700 text-on-surface-variant dark:text-slate-300 font-semibold text-sm whitespace-nowrap hover:bg-surface-variant transition-colors'
             }
           >
             {filter}
@@ -152,9 +152,11 @@ export function Branches() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
               {featured.is_puno && (
-                <div className="absolute top-4 left-4 bg-error text-on-error px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                  {strings.punoBanner}
+                <div className="absolute inset-0 flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] z-10">
+                  <div className="bg-error text-on-error px-6 py-3 rounded-full text-[13px] font-black uppercase tracking-[0.15em] flex items-center gap-3 shadow-2xl border border-white/20 animate-in fade-in zoom-in duration-300">
+                    <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                    {strings.punoBanner}
+                  </div>
                 </div>
               )}
             </div>
@@ -184,14 +186,14 @@ export function Branches() {
               </div>
 
               <div className="grid grid-cols-2 gap-4 mt-8">
-                <div className="bg-surface-container-low dark:bg-slate-700/50 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
                   <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Walk-in</span>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.walkinAvgMinutes)}`}>{Math.round(featured.walkinAvgMinutes / 60 * 10) / 10}h</span> {/* FIX 7: Use shared minutes-based value. */}
                     <span className={`material-symbols-outlined ${waitTone(featured.walkinAvgMinutes)} text-lg`}>trending_up</span>
                   </div>
                 </div>
-                <div className="bg-surface-container-low dark:bg-slate-700/50 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
                   <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Appointment</span>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.appointmentAvgMinutes)}`}>{featured.appointmentAvgMinutes}m</span> {/* FIX 7: Use shared appointment average minutes. */}
@@ -216,7 +218,7 @@ export function Branches() {
                       e.stopPropagation();
                       openDetails(featured);
                     }}
-                className="flex-1 py-3 rounded-full border border-primary text-primary font-bold text-sm bg-transparent active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-full border border-primary dark:border-slate-500 text-primary dark:text-slate-300 font-bold text-sm bg-transparent active:scale-95 transition-transform"
                   >
                     Tingnan Details {/* FIX 6: Details button opens the full info bottom sheet. */}
                   </button>
@@ -248,12 +250,12 @@ export function Branches() {
       {/* Other branches list */}
       {others.length > 0 && (
         <div className="mt-12 mb-8">
-          <h3 className="text-lg font-bold text-on-surface px-1 mb-4">Iba pang Sanga Malapit Sayo</h3>
+          <h3 className="text-lg font-bold text-on-surface dark:text-slate-100 px-1 mb-4">Iba pang Sanga Malapit Sayo</h3>
           <div className="space-y-4">
             {others.map((b) => (
               <div
                 key={b.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-surface-container-low dark:bg-slate-700/50 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer group"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-surface-container-low dark:bg-slate-800/60 rounded-xl hover:bg-surface-container-high dark:hover:bg-slate-700 transition-colors cursor-pointer group"
                 onClick={() => openDetails(b)} // FIX 5: Row tap opens details.
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high">

@@ -72,7 +72,7 @@ export function Root() {
   const headerTopClass = DEMO_MODE ? 'top-7' : 'top-0';
 
   return (
-    <div className={`min-h-screen bg-surface text-on-surface selection:bg-primary-fixed pb-32`}>
+    <div className={`min-h-screen bg-surface dark:bg-slate-900 text-on-surface dark:text-slate-100 selection:bg-primary-fixed pb-32`}>
       {/* FIX 4: Dark mode is applied via <html class="dark"> (see ThemeContext + main.tsx bootstrap). */}
       {DEMO_MODE && (
         <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-400 text-amber-900 text-[11px] font-bold text-center py-1.5 px-4 w-full">
@@ -138,7 +138,7 @@ export function Root() {
           aria-label="Isara ang notifications"
         />
         <aside
-          className={`absolute top-0 right-0 h-full w-[86%] max-w-sm bg-surface-container-lowest dark:bg-slate-800 shadow-2xl transition-transform duration-300 ease-out ${
+          className={`absolute top-0 right-0 h-full w-[86%] max-w-sm bg-surface-container-lowest dark:bg-slate-900 shadow-2xl transition-transform duration-300 ease-out ${
             isNotifOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
@@ -197,7 +197,7 @@ export function Root() {
             onClick={() => setLocationModalOpen(false)}
             aria-label="Isara ang location picker"
           />
-          <div className="relative w-full max-w-sm rounded-lg p-6 shadow-2xl border bg-surface-container-lowest dark:bg-slate-800 border-outline-variant/10 dark:border-slate-700/30">
+          <div className="relative w-full max-w-sm rounded-lg p-6 shadow-2xl border bg-surface-container-lowest dark:bg-slate-900 border-outline-variant/10 dark:border-slate-700/30">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-extrabold tracking-tight text-lg text-on-surface dark:text-slate-100">Pumili ng Lokasyon</h3>
               <button onClick={() => setLocationModalOpen(false)} className="p-2 rounded-full bg-surface-container-low dark:bg-slate-700/50 text-on-surface dark:text-slate-100">

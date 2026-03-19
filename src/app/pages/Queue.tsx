@@ -325,7 +325,7 @@ export function Queue() {
     if (!recoverySession) return null;
     return (
       <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
-        <div className="w-full max-w-sm rounded-[24px] p-6 shadow-2xl bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30">
+        <div className="w-full max-w-sm rounded-[24px] p-6 shadow-2xl bg-surface-container-lowest dark:bg-slate-900 border border-outline-variant/10 dark:border-slate-700/30">
           <h3 className="font-black text-lg mb-2 text-on-surface dark:text-slate-100">Session Recovered</h3>
           <p className="text-sm font-medium mb-6 text-on-surface-variant dark:text-slate-400">
             {strings.recoveryModalTitle.replace('{time}', new Date(recoverySession.started_at).toLocaleTimeString())}
@@ -342,7 +342,7 @@ export function Queue() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-6 space-y-6 pb-20">
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Branch</label>
-        <button onClick={() => setBranchPickerOpen(true)} className="w-full px-4 py-3.5 rounded-2xl border border-outline-variant/10 dark:border-slate-700/30 flex items-center justify-between shadow-sm transition-colors bg-surface-container-lowest dark:bg-slate-800">
+        <button onClick={() => setBranchPickerOpen(true)} className="w-full px-4 py-3.5 rounded-2xl border border-outline-variant/10 dark:border-slate-700/30 flex items-center justify-between shadow-sm transition-colors bg-surface-container-lowest dark:bg-slate-700">
           <span className="font-bold text-[15px] text-on-surface dark:text-slate-100">{selectedBranch.name}</span>
           <span className="material-symbols-outlined text-on-surface-variant">expand_more</span>
         </button>
@@ -354,8 +354,8 @@ export function Queue() {
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Type (Required)</label>
         <div className="flex gap-3">
-           <button onClick={() => setQueueType('walk-in')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'border-white/10 text-white' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeWalkin}</button>
-           <button onClick={() => setQueueType('appointment')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'border-white/10 text-white' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeAppointment}</button>
+           <button onClick={() => setQueueType('walk-in')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeWalkin}</button>
+           <button onClick={() => setQueueType('appointment')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeAppointment}</button>
         </div>
       </div>
 
@@ -366,7 +366,7 @@ export function Queue() {
            value={queueNumber}
            onChange={e => setQueueNumber(e.target.value)}
            placeholder="Halimbawa: A-142" 
-           className="w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm bg-surface-container-lowest dark:bg-slate-800 border-outline-variant/10 dark:border-slate-700/30 text-on-surface dark:text-slate-100 placeholder:text-on-surface-variant/60 dark:placeholder:text-slate-400/60" /* FIX 4: Use dark variants instead of custom dark-only colors. */
+           className="w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm bg-surface-container-lowest dark:bg-slate-700 border-outline-variant/10 dark:border-slate-700/30 text-on-surface dark:text-slate-100 placeholder:text-on-surface-variant/60 dark:placeholder:text-slate-500" /* FIX 4: Use dark variants instead of custom dark-only colors. */
         />
       </div>
 
@@ -377,7 +377,7 @@ export function Queue() {
             <button
               key={type}
               onClick={() => setTransactionType(type)}
-              className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all border ${transactionType === type ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-[#162A45] text-blue-200/70 border-white/10' : 'bg-white text-gray-600')}`}
+              className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all border ${transactionType === type ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-200 border-white/10' : 'bg-white text-gray-600')}`}
             >
               {type}
             </button>
@@ -437,7 +437,7 @@ export function Queue() {
       )}
 
       <div className="px-6 mb-5">
-        <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200')}`}>
+        <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200')}`}>
           <div className="w-full flex justify-between items-center mb-6">
             <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</h2>
             <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
@@ -461,7 +461,7 @@ export function Queue() {
                   <button 
                      key={m.id} 
                      onClick={() => toggleMilestone(idx)}
-                     className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${m.timestamp ? 'bg-[#10B981]/10 border-[#10B981] text-[#10B981]' : (isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900')}`}
+                     className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${m.timestamp ? 'bg-teal-900/40 border-[#10B981] text-[#10B981]' : (isDark ? 'bg-slate-700/50 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900')}`}
                   >
                      <span className="font-extrabold text-[14px]">{m.label}</span>
                      {m.timestamp ? (
@@ -555,7 +555,7 @@ export function Queue() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className={`relative w-full max-w-sm rounded-[24px] p-5 shadow-2xl border ${isDark ? 'bg-[#0D1F35] border-white/10' : 'bg-white border-gray-200'}`}
+              className={`relative w-full max-w-sm rounded-[24px] p-5 shadow-2xl border ${isDark ? 'bg-slate-900 border-white/10' : 'bg-white border-gray-200'}`}
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className={`font-black tracking-tight text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>Pumili ng Branch</h3>
@@ -638,7 +638,7 @@ export function Queue() {
       
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-[#162A45] border-white/5 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+          <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-slate-800 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900'}`}>
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div>
@@ -665,11 +665,11 @@ export function Queue() {
             />
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`relative w-full h-[85%] rounded-t-[32px] p-6 shadow-2xl border-t flex flex-col ${isDark ? 'bg-[#0D1F35] border-white/10' : 'bg-white border-gray-200'}`}
+              className={`relative w-full h-[85%] rounded-t-[32px] p-6 shadow-2xl border-t flex flex-col ${isDark ? 'bg-slate-900 border-white/10' : 'bg-white border-gray-200'}`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className={`font-black tracking-tight text-xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Review & Submit</h3>
-                <button onClick={() => setSubmitModalOpen(false)} className="p-2 rounded-full bg-surface-container-low text-on-surface">
+                <button onClick={() => setSubmitModalOpen(false)} className="p-2 rounded-full bg-slate-700 text-slate-100">
                   <span className="material-symbols-outlined text-lg">close</span>
                 </button>
               </div>

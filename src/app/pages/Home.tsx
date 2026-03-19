@@ -101,7 +101,7 @@ export function Home() {
             exit={{ height: 0, opacity: 0 }}
             className="mb-4 overflow-hidden"
           >
-            <div className="bg-error text-on-error p-4 rounded-lg flex items-start gap-3 shadow-[0_8px_32px_rgba(25,28,30,0.06)] relative border border-outline-variant/10">
+            <div className="bg-error dark:bg-red-950 text-on-error p-4 rounded-lg flex items-start gap-3 shadow-[0_8px_32px_rgba(25,28,30,0.06)] relative border border-outline-variant/10 dark:border-red-800">
               <span className="material-symbols-outlined flex-shrink-0 mt-0.5 text-on-error" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                 warning
               </span>
@@ -137,7 +137,7 @@ export function Home() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/branches')}
-              className="bg-white text-primary px-8 py-3 rounded-full font-bold text-sm tracking-wide shadow-lg active:scale-95 transition-transform"
+              className="bg-white text-[#E63946] px-8 py-3 rounded-full font-bold text-sm tracking-wide shadow-lg active:scale-95 transition-transform"
             >
               Tingnan ang Malapit
             </button>
@@ -168,7 +168,7 @@ export function Home() {
       {visibleAnomalies.length > 0 && (
         <div className="mb-6 space-y-3">
           {visibleAnomalies.map((b) => (
-            <div key={b.id} className="border border-error/30 bg-error/10 rounded-xl p-4 flex items-start justify-between gap-3">
+            <div key={b.id} className="border border-error/30 dark:border-amber-800/50 bg-error/10 dark:bg-amber-950/60 rounded-xl p-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-extrabold text-on-surface dark:text-slate-100 truncate">{b.name}</div>
                 <div className="text-xs font-semibold text-on-surface-variant dark:text-slate-400 line-clamp-1 mt-0.5">
@@ -218,8 +218,8 @@ export function Home() {
           <>
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('plastic')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
           <div className="flex justify-between items-start">
-            <div className="p-3 bg-tertiary/10 rounded-full">
-              <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
+            <div className="p-3 bg-tertiary/10 dark:bg-teal-900/40 rounded-full">
+              <span className="material-symbols-outlined text-tertiary dark:text-teal-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
             </div>
             <span className="text-xs font-bold text-tertiary uppercase tracking-wider">Sapat</span>
           </div>
@@ -231,8 +231,8 @@ export function Home() {
 
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('wait')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
           <div className="flex justify-between items-start">
-            <div className="p-3 bg-amber-500/10 rounded-full">
-              <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" } as any}>schedule</span>
+            <div className="p-3 bg-amber-500/10 dark:bg-amber-900/40 rounded-full">
+              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>schedule</span>
             </div>
             <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">Moderate</span>
           </div>
@@ -244,7 +244,7 @@ export function Home() {
 
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('flagged')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
           <div className="flex justify-between items-start">
-            <div className="p-3 bg-primary/10 rounded-full">
+            <div className="p-3 bg-primary/10 dark:bg-red-900/40 rounded-full">
               <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" } as any}>report</span>
             </div>
             <span className="text-xs font-bold text-primary uppercase tracking-wider">Alert</span>
@@ -257,8 +257,8 @@ export function Home() {
 
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('reports')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
           <div className="flex justify-between items-start">
-            <div className="p-3 bg-slate-100 rounded-full">
-              <span className="material-symbols-outlined text-slate-600" style={{ fontVariationSettings: "'FILL' 1" } as any}>analytics</span>
+            <div className="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-full">
+              <span className="material-symbols-outlined text-slate-600 dark:text-slate-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>analytics</span>
             </div>
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total</span>
           </div>
@@ -284,7 +284,7 @@ export function Home() {
             </>
           )}
           {!isLoading && nearest2.map((b) => (
-            <div key={b.id} className="flex items-center gap-4 p-4 bg-surface-container-low dark:bg-slate-700/50 rounded-xl">
+            <div key={b.id} className="flex items-center gap-4 p-4 bg-surface-container-low dark:bg-slate-800 rounded-xl">
               <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high">
                 <img className="w-full h-full object-cover" alt="Branch" src={b.thumbnailUrl} />
               </div>
@@ -348,7 +348,7 @@ export function Home() {
         {isChartOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setChartOpen(false)} />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative w-full rounded-lg p-6 shadow-2xl border bg-surface-container-lowest border-outline-variant/10">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative w-full rounded-lg p-6 shadow-2xl border bg-surface-container-lowest dark:bg-slate-900 border-outline-variant/10 dark:border-slate-700/30">
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="font-extrabold tracking-tight text-lg text-on-surface">Average Wait Time</h3>

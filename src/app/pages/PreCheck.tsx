@@ -65,7 +65,7 @@ export function PreCheck() {
 
       {/* Transaction Type Selector */}
       <div className="pl-6 mb-6 flex gap-2.5 overflow-x-auto pb-2 pr-6 relative scrollbar-hide">
-        <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l pointer-events-none z-10 ${isDark ? 'from-[#0D1F35]' : 'from-gray-50'}`} />
+        <div className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l pointer-events-none z-10 ${isDark ? 'from-slate-900' : 'from-gray-50'}`} />
         {CATEGORIES.map((category) => (
           <motion.button 
             key={category} 
@@ -73,7 +73,7 @@ export function PreCheck() {
             className={`whitespace-nowrap px-4 py-2.5 rounded-full text-[13px] font-extrabold transition-all flex-shrink-0 border ${
               activeCategory === category
                 ? 'bg-[#E63946] text-white border-[#E63946] shadow-lg shadow-[#E63946]/20'
-                : 'bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30 hover:bg-surface-container-low dark:hover:bg-slate-700/50'
+                : 'bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30 hover:bg-surface-container-low dark:hover:bg-slate-700'
             }`} /* FIX 4: Replace custom dark backgrounds with proper dark variants. */
           >
             {category}
@@ -98,13 +98,13 @@ export function PreCheck() {
                key="upload"
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
                onClick={() => fileInputRef.current?.click()}
-               className={`rounded-[24px] p-8 border-2 border-dashed flex flex-col items-center text-center cursor-pointer transition-colors group ${isDark ? 'bg-[#162A45]/40 border-white/20 hover:bg-[#162A45]/60' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
+               className={`rounded-[24px] p-8 border-2 border-dashed flex flex-col items-center text-center cursor-pointer transition-colors group ${isDark ? 'bg-slate-800 border-slate-600 hover:bg-slate-700' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
             >
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner border ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200'}`}>
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-inner border ${isDark ? 'bg-slate-800 border-white/5 text-slate-400' : 'bg-white border-gray-200'}`}>
                 <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>description</span>
               </div>
               <h2 className={`font-bold text-[17px] mb-2 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>I-upload ang inyong Form</h2>
-              <p className={`text-[11px] font-medium leading-relaxed max-w-[85%] ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Kuhanan ng malinaw na litrato ang iyong form. Hindi ise-save ang iyong larawan sa server.</p>
+              <p className={`text-[11px] font-medium leading-relaxed max-w-[85%] ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Kuhanan ng malinaw na litrato ang iyong form. Hindi ise-save ang iyong larawan sa server.</p>
               <div className={`mt-5 px-5 py-2.5 rounded-full text-xs font-extrabold flex items-center gap-2 transition-colors ${isDark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-800 text-white hover:bg-gray-700'}`}>
                 <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>photo_camera</span> Buksan ang Camera
               </div>
@@ -113,7 +113,7 @@ export function PreCheck() {
             <motion.div 
                key="preview"
                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-               className={`rounded-[24px] p-2 border shadow-sm relative ${isDark ? 'bg-[#162A45] border-white/10' : 'bg-white border-gray-200'}`}
+               className={`rounded-[24px] p-2 border shadow-sm relative ${isDark ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200'}`}
             >
                <img src={selectedImage} alt="Form preview" className="w-full h-48 object-cover rounded-[18px]" />
                <div className="absolute top-4 right-4 flex gap-2">
@@ -156,7 +156,7 @@ export function PreCheck() {
                 <motion.div 
                    key={item.id} 
                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.15 }}
-                   className={`rounded-2xl p-3.5 border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}
+                   className={`rounded-2xl p-3.5 border flex items-center justify-between ${isDark ? 'bg-slate-800 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm shadow-inner ${isDark ? 'bg-[#0A1626] border-white/5' : 'bg-gray-100 border-gray-200'}`}>
@@ -175,15 +175,15 @@ export function PreCheck() {
                     <span className={`font-semibold text-[13px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.field}</span>
                   </div>
                   <div>
-                    {item.status === 'ok' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span> OK</div>}
-                    {item.status === 'missing' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30' : 'bg-red-50 text-red-600 border-red-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>error</span> Kulang!</div>}
+                    {item.status === 'ok' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-green-900 text-green-300 border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span> OK</div>}
+                    {item.status === 'missing' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-red-950 text-red-300 border-[#E63946]/30' : 'bg-red-50 text-red-600 border-red-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>error</span> Kulang!</div>}
                   </div>
                 </motion.div>
               ))}
             </div>
 
             {/* Scenario 9: Branch Specific Warning Section */}
-            <div className={`border rounded-2xl p-4 mb-5 ${isDark ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
+            <div className={`border rounded-2xl p-4 mb-5 ${isDark ? 'bg-amber-950/60 border-amber-700' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
                <h4 className={`text-[13px] font-extrabold flex items-center gap-2 mb-2 ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>
                   <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>warning</span> Heads Up sa mga Branch
                </h4>
@@ -202,7 +202,7 @@ export function PreCheck() {
 
             {isAllOk ? (
                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
-                 <div className={`border rounded-2xl p-4 flex flex-col items-center text-center gap-2 mb-4 ${isDark ? 'bg-[#10B981]/10 border-[#10B981]/30' : 'bg-emerald-50 border-emerald-200'}`}>
+                 <div className={`border rounded-2xl p-4 flex flex-col items-center text-center gap-2 mb-4 ${isDark ? 'bg-green-950 border-green-800' : 'bg-emerald-50 border-emerald-200'}`}>
                     <div className="w-12 h-12 bg-[#10B981] rounded-full flex items-center justify-center text-white mb-1 shadow-lg shadow-[#10B981]/40">
                       <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>check</span>
                     </div>
@@ -218,7 +218,7 @@ export function PreCheck() {
                </motion.div>
             ) : (
                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
-                 <div className={`border rounded-2xl p-4 mb-4 flex items-start gap-3 ${isDark ? 'bg-[#E63946]/10 border-[#E63946]/30' : 'bg-red-50 border-red-200'}`}>
+                 <div className={`border rounded-2xl p-4 mb-4 flex items-start gap-3 ${isDark ? 'bg-red-950 border-red-800' : 'bg-red-50 border-red-200'}`}>
                    <div className={`p-1.5 rounded-full mt-0.5 flex-shrink-0 ${isDark ? 'bg-[#E63946]/20' : 'bg-red-100'}`}>
                      <span className="material-symbols-outlined text-lg text-[#E63946]">cancel</span>
                    </div>
@@ -229,7 +229,7 @@ export function PreCheck() {
                  </div>
                  <button 
                    onClick={() => setScanState('idle')}
-                   className={`w-full py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 border transition-all active:scale-[0.98] ${isDark ? 'bg-[#162A45] border-white/20 text-white hover:bg-[#162A45]/80' : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'}`}
+                   className={`w-full py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 border transition-all active:scale-[0.98] ${isDark ? 'bg-slate-800 border-white/20 text-white hover:bg-slate-700' : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'}`}
                  >
                    <span className="material-symbols-outlined text-xl">refresh</span> I-scan Ulit
                  </button>
