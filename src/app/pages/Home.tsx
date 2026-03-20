@@ -112,10 +112,10 @@ export function Home() {
   // In Demo Mode, use demo branches for the nearest section so all fields are populated
   const nearest2 = isDemoMode && DEMO_BRANCHES.length >= 2
     ? (DEMO_BRANCHES as Branch[]).slice(0, 2).map((b) => ({
-        ...b,
-        walkinAvgMinutes: getAdjustedWaitTime(b.walkinAvgMinutes),
-        appointmentAvgMinutes: getAdjustedWaitTime(b.appointmentAvgMinutes),
-      }))
+      ...b,
+      walkinAvgMinutes: getAdjustedWaitTime(b.walkinAvgMinutes),
+      appointmentAvgMinutes: getAdjustedWaitTime(b.appointmentAvgMinutes),
+    }))
     : [...adjustedBranches].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 2);
 
   const getDecisionStatus = (b: Branch) => {
@@ -194,13 +194,13 @@ export function Home() {
           const data = await res.json();
           savedIds = data?.branch_ids || data?.ids || [];
         }
-      } catch {}
+      } catch { }
 
       if (!savedIds.length) {
         try {
           const raw = localStorage.getItem(savedKey);
           if (raw) savedIds = JSON.parse(raw);
-        } catch {}
+        } catch { }
       }
 
       if (savedIds.length) {
@@ -221,7 +221,7 @@ export function Home() {
     const ids = decisionBranches.map((b) => b.id);
     try {
       localStorage.setItem('ligtaslto_saved_branches', JSON.stringify(ids));
-    } catch {}
+    } catch { }
 
     try {
       // TODO: Backend — add POST /api/branches/save.
@@ -230,7 +230,7 @@ export function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ branch_ids: ids }),
       });
-    } catch {}
+    } catch { }
   };
   const visibleAnomalies = adjustedBranches
     .filter((b) => b.hasActiveAnomaly && !dismissedAnomalies[b.id])
@@ -430,59 +430,59 @@ export function Home() {
         )}
         {!isLoading && (
           <>
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('plastic')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
-          <div className="flex justify-between items-start">
-            <div className="p-3 bg-tertiary/10 dark:bg-teal-900/40 rounded-full">
-              <span className="material-symbols-outlined text-tertiary dark:text-teal-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
-            </div>
-            <span className="text-xs font-bold text-tertiary uppercase tracking-wider">Sapat</span>
-          </div>
-          <div>
-            <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">{adjustedBranches.filter((b) => b.hasPlasticCards).length || 12}</div>
-            <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Sangay na may Plastic Cards</div>
-          </div>
-        </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('plastic')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-tertiary/10 dark:bg-teal-900/40 rounded-full">
+                  <span className="material-symbols-outlined text-tertiary dark:text-teal-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
+                </div>
+                <span className="text-xs font-bold text-tertiary uppercase tracking-wider">Sapat</span>
+              </div>
+              <div>
+                <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">{adjustedBranches.filter((b) => b.hasPlasticCards).length || 12}</div>
+                <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Sangay na may Plastic Cards</div>
+              </div>
+            </motion.button>
 
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('wait')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
-          <div className="flex justify-between items-start">
-            <div className="p-3 bg-amber-500/10 dark:bg-amber-900/40 rounded-full">
-              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>schedule</span>
-            </div>
-            <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">Moderate</span>
-          </div>
-          <div>
-            <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">
-              {adjustedBranches.length ? (Math.round(adjustedBranches.reduce((a, c) => a + c.walkinAvgMinutes, 0) / adjustedBranches.length / 60 * 10) / 10) : 2.5}
-            </div>
-            <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Oras Average na Pila</div>
-          </div>
-        </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('wait')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-amber-500/10 dark:bg-amber-900/40 rounded-full">
+                  <span className="material-symbols-outlined text-amber-600 dark:text-amber-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>schedule</span>
+                </div>
+                <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">Moderate</span>
+              </div>
+              <div>
+                <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">
+                  {adjustedBranches.length ? (Math.round(adjustedBranches.reduce((a, c) => a + c.walkinAvgMinutes, 0) / adjustedBranches.length / 60 * 10) / 10) : 2.5}
+                </div>
+                <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Oras Average na Pila</div>
+              </div>
+            </motion.button>
 
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('flagged')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
-          <div className="flex justify-between items-start">
-            <div className="p-3 bg-primary/10 dark:bg-red-900/40 rounded-full">
-              <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" } as any}>report</span>
-            </div>
-            <span className="text-xs font-bold text-primary uppercase tracking-wider">Alert</span>
-          </div>
-          <div>
-            <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">{adjustedBranches.filter(b => b.hasActiveAnomaly).length || 3}</div>
-            <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Flagged na Sangay</div>
-          </div>
-        </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('flagged')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-primary/10 dark:bg-red-900/40 rounded-full">
+                  <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" } as any}>report</span>
+                </div>
+                <span className="text-xs font-bold text-primary uppercase tracking-wider">Alert</span>
+              </div>
+              <div>
+                <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">{adjustedBranches.filter(b => b.hasActiveAnomaly).length || 3}</div>
+                <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Flagged na Sangay</div>
+              </div>
+            </motion.button>
 
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('reports')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
-          <div className="flex justify-between items-start">
-            <div className="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-full">
-              <span className="material-symbols-outlined text-slate-600 dark:text-slate-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>analytics</span>
-            </div>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total</span>
-          </div>
-          <div>
-            <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">842</div>
-            <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Kabuuan ng Ulat Ngayon</div>
-          </div>
-        </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleQuickStatClick('reports')} className="bg-surface-container-lowest dark:bg-slate-800 p-6 rounded-lg shadow-[0_8px_32px_rgba(25,28,30,0.04)] border border-white/50 dark:border-slate-700/30 flex flex-col justify-between aspect-square text-left">
+              <div className="flex justify-between items-start">
+                <div className="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-full">
+                  <span className="material-symbols-outlined text-slate-600 dark:text-slate-400" style={{ fontVariationSettings: "'FILL' 1" } as any}>analytics</span>
+                </div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total</span>
+              </div>
+              <div>
+                <div className="text-4xl font-extrabold text-on-surface dark:text-slate-100">842</div>
+                <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400 leading-tight">Kabuuan ng Ulat Ngayon</div>
+              </div>
+            </motion.button>
           </>
         )}
       </section>
@@ -500,43 +500,59 @@ export function Home() {
             </>
           )}
           {!isLoading && nearest2.map((b) => (
-            <div key={b.id} className="flex items-center gap-4 p-4 bg-surface-container-low dark:bg-slate-800 rounded-xl">
-              <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high">
-                <img className="w-full h-full object-cover" alt="Branch" src={b.thumbnailUrl} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-on-surface dark:text-slate-100 truncate">{b.name}</div>
-                <div className="text-[11px] text-on-surface-variant dark:text-slate-400 truncate mb-0.5">
-                  {b.address}
-                </div>
-                <div className="text-xs text-on-surface-variant dark:text-slate-400 truncate font-medium">
-                  {b.distanceKm.toFixed(1)} km • {b.operatingHours}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className={`text-sm font-black ${waitTone(b.walkinAvgMinutes)}`}>{Math.round(b.walkinAvgMinutes / 60 * 10) / 10}h</div>
-                <div className="mt-1 flex items-center justify-end gap-2">
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${
-                      b.hasPlasticCards ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'
-                    }`}
-                  >
-                    {b.hasPlasticCards ? 'May Plastic' : 'Wala Plastic'} {/* FIX 3: Plastic availability pill. */}
-                  </span>
+            <div key={b.id} className="p-4 bg-surface-container-low dark:bg-slate-800 rounded-2xl mb-4 border border-outline-variant/10 dark:border-slate-700/30">
+              {/* 1. TOP SECTION (Row for image, details, queue) */}
+              <div className="flex flex-row items-start gap-4">
+                {/* LEFT: Image */}
+                <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high mt-1">
+                  <img className="w-full h-full object-cover" alt="Branch" src={b.thumbnailUrl} />
                 </div>
 
-                {(() => {
-                  const herd = getArrivalTimeEstimate(b);
-                  if (!herd) return null;
-                  return (
-                    <div className="mt-2 pt-2 border-t border-amber-500/20 text-left">
-                      <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 whitespace-normal">
-                        ~{herd.count} katao papunta — karamihan aabot ng {herd.arrivalTime}. Kung aalis ka ngayon, maaabot mo pa bago sila.
-                      </div>
-                    </div>
-                  );
-                })()}
+                {/* MIDDLE: Branch Details (Bolder and Larger Text) */}
+                <div className="flex-1 min-w-0 text-left flex flex-col justify-start space-y-0.5">
+                  <div className="font-extrabold text-[17px] text-[#0F172A] dark:text-white leading-tight truncate">
+                    {b.name || 'LTO Novaliches'}
+                  </div>
+                  <div className="text-[13px] font-medium text-gray-600 dark:text-gray-400 truncate leading-snug">
+                    {b.address || 'Robinsons Novaliches, Quezon City'}
+                  </div>
+                  <div className="text-[13px] font-medium text-gray-500 dark:text-gray-400 truncate pt-1 flex items-center gap-1">
+                    <span>{b.distanceKm ? b.distanceKm.toFixed(1) : '8.7'} km</span>
+                    <span>•</span>
+                    <span>{b.operatingHours || '08:00-17:00'}</span>
+                  </div>
+                </div>
+
+                {/* RIGHT: Queue Time */}
+                <div className="text-right flex-shrink-0 w-24 flex flex-col items-end">
+                  <div className={`text-[19px] font-black leading-none ${waitTone(b.walkinAvgMinutes)}`}>
+                    {Math.round(b.walkinAvgMinutes / 60 * 10) / 10}h
+                  </div>
+                  <div className="mt-2.5">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${b.hasPlasticCards ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
+                      {b.hasPlasticCards ? 'May Plastic' : 'Wala Plastic'}
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              {/* 2. BOTTOM SECTION (Moved Herd / Arrival Estimate) */}
+              {(() => {
+                const herd = getArrivalTimeEstimate(b);
+                if (!herd) return null;
+                return (
+                  <div className="mt-4 pt-3 border-t border-amber-500/20 bg-amber-500/5 -mx-4 px-4 -mb-4 rounded-b-2xl pb-3.5">
+                    <div className="text-[12px] font-extrabold text-amber-700 dark:text-amber-300 whitespace-normal leading-relaxed text-left flex items-start gap-2">
+                      <span className="material-symbols-outlined text-base mt-0.5" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                        groups
+                      </span>
+                      <span>
+                        ~{herd.count} katao papunta — karamihan aabot ng {herd.arrivalTime}. Kung aalis ka ngayon, maaabot mo pa bago sila.
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>

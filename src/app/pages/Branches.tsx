@@ -22,7 +22,7 @@ export function Branches() {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null); // FIX 5: Selected branch for the details bottom sheet.
   const [isDetailsOpen, setDetailsOpen] = useState(false); // FIX 5: Bottom sheet open state.
   const [onboardingTransaction, setOnboardingTransaction] = useState<string | null>(null); // FIX 4A: Transaction-first pre-filter.
-  
+
   // Scenario 5: Intent State
   const [intentBranches, setIntentBranches] = useState<Record<string, boolean>>({});
 
@@ -49,7 +49,7 @@ export function Branches() {
         const mapped = filterMap[filterParam];
         if (mapped) setActiveFilter(mapped);
       }
-    } catch {}
+    } catch { }
   }, [location.search]);
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export function Branches() {
     e.stopPropagation();
     setIntentBranches(prev => ({ ...prev, [id]: !prev[id] }));
     // API Call: POST /api/branches/:id/intent
-    fetch(`/api/branches/${id}/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_hash: 'device-12345' }) }).catch(()=>{});
+    fetch(`/api/branches/${id}/intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device_hash: 'device-12345' }) }).catch(() => { });
   };
 
   const featured = filteredBranches[0];
@@ -313,11 +313,10 @@ export function Branches() {
                 </div>
                 <button
                   onClick={(e) => toggleIntent(featured.id, e)}
-                  className={`shrink-0 px-3 py-1 rounded-md border text-[10px] font-bold uppercase tracking-tighter flex items-center gap-1 ${
-                    intentBranches[featured.id]
+                  className={`shrink-0 px-3 py-1 rounded-md border text-[10px] font-bold uppercase tracking-tighter flex items-center gap-1 ${intentBranches[featured.id]
                       ? 'bg-tertiary-container/10 text-tertiary border-outline-variant/10 dark:border-slate-700/30'
                       : 'bg-surface-container-low dark:bg-slate-700/50 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                     navigation
@@ -404,7 +403,7 @@ export function Branches() {
                       e.stopPropagation();
                       openDetails(featured);
                     }}
-                className="flex-1 py-3 rounded-full border border-primary dark:border-slate-500 text-primary dark:text-slate-300 font-bold text-sm bg-transparent active:scale-95 transition-transform"
+                    className="flex-1 py-3 rounded-full border border-primary dark:border-slate-500 text-primary dark:text-slate-300 font-bold text-sm bg-transparent active:scale-95 transition-transform"
                   >
                     Tingnan Details {/* FIX 6: Details button opens the full info bottom sheet. */}
                   </button>
@@ -467,9 +466,8 @@ export function Branches() {
 
                   <div className="flex flex-wrap gap-2">
                     <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-extrabold border ${
-                        b.hasPlasticCards ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'
-                      }`}
+                      className={`px-3 py-1 rounded-full text-[10px] font-extrabold border ${b.hasPlasticCards ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'
+                        }`}
                     >
                       {b.hasPlasticCards ? 'May Plastic' : 'Wala Plastic'} {/* IMPROVEMENT 7: Plastic status pill on list rows. */}
                     </span>

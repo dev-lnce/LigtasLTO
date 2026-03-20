@@ -70,7 +70,7 @@ export function Queue() {
   const [timerState, setTimerState] = useState<TimerState>('setup');
   const [seconds, setSeconds] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
-  
+
   const [transactionType, setTransactionType] = useState(() => {
     try {
       const saved = localStorage.getItem('ligtaslto_transaction');
@@ -95,7 +95,7 @@ export function Queue() {
   const [queueOcrState, setQueueOcrState] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
   const [queueOcrError, setQueueOcrError] = useState<string>('');
   const [wakeLockActive, setWakeLockActive] = useState(false);
-  
+
   // Scenarios State
   const [queueType, setQueueType] = useState<'walk-in' | 'appointment' | null>(null); // Scenario 10
   const [isPreQueue, setIsPreQueue] = useState(false); // Scenario 11
@@ -113,7 +113,7 @@ export function Queue() {
   const [selectedFlags, setSelectedFlags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitModalOpen, setSubmitModalOpen] = useState(false);
-  
+
   // Offline Sync State
   const [offlineSyncMessage, setOfflineSyncMessage] = useState('');
 
@@ -160,18 +160,18 @@ export function Queue() {
         const match = all.find((b) => b.id === branchId);
         if (match) setSelectedBranch(match);
       }
-    } catch {}
+    } catch { }
 
     const checkPendingSession = async () => {
       try {
         const res = await fetch(`/api/sessions/pending?device_hash=${DEVICE_HASH}`);
         if (res.ok) {
-           const data = await res.json();
-           if (data) {
-             setRecoverySession(data);
-           }
+          const data = await res.json();
+          if (data) {
+            setRecoverySession(data);
+          }
         }
-      } catch (e) {} // ignore offline
+      } catch (e) { } // ignore offline
     };
     checkPendingSession();
 
@@ -184,7 +184,7 @@ export function Queue() {
 
     const swMessageListener = (event: MessageEvent) => {
       if (event.data && event.data.type === 'FLUSH_DUE_TO_SYNC') {
-         flushOfflineQueue();
+        flushOfflineQueue();
       }
     };
     navigator.serviceWorker.addEventListener('message', swMessageListener);
@@ -213,21 +213,21 @@ export function Queue() {
     if (!pendingJson) return;
     const pending = JSON.parse(pendingJson);
     if (pending.length === 0) return;
-    
+
     let toKeep = [];
     for (const p of pending) {
-       try {
-         const res = await fetch('/api/submissions', {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify(p)
-         });
-         if (!res.ok) {
-           toKeep.push(p);
-         }
-       } catch (e) {
-         toKeep.push(p);
-       }
+      try {
+        const res = await fetch('/api/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p)
+        });
+        if (!res.ok) {
+          toKeep.push(p);
+        }
+      } catch (e) {
+        toKeep.push(p);
+      }
     }
     localStorage.setItem('ligtaslto_pending_submissions', JSON.stringify(toKeep));
     if (toKeep.length === 0) {
@@ -255,7 +255,7 @@ export function Queue() {
         // Scenario 7: Check lunch break
         const blackout = IS_DURING_LUNCH_BREAK(BRANCH_OPERATING_HOURS);
         setIsLunchBreak(blackout);
-        
+
         // If blackout, don't increment visually, but the DB start/end timestamps will still account for it.
         if (!blackout) {
           setSeconds(s => s + 1);
@@ -288,7 +288,7 @@ export function Queue() {
     if (!isPre) {
       try {
         (window as any)?.ligtasltoWakeLock?.requestWakeLock?.();
-      } catch {}
+      } catch { }
     }
 
     // Scenario 3: Geofence Check
@@ -319,7 +319,7 @@ export function Queue() {
             started_at: start.toISOString()
           })
         });
-      } catch (e) {} // fine to fail if offline
+      } catch (e) { } // fine to fail if offline
     }
   };
 
@@ -392,7 +392,7 @@ export function Queue() {
       // Persona 1A: last milestone stops timer + triggers submit flow.
       try {
         (window as any)?.ligtasltoWakeLock?.releaseWakeLock?.();
-      } catch {}
+      } catch { }
       openSubmitModal();
     }
   };
@@ -412,11 +412,16 @@ export function Queue() {
         body: JSON.stringify({ device_hash: DEVICE_HASH })
       });
       setIsPunoConfirmed(true);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // FINAL SUBMISSION
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async (e?: any) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    if (isSubmitting) return; // Prevent double trigger
+
     setIsSubmitting(true);
     const end = new Date();
 
@@ -434,7 +439,9 @@ export function Queue() {
           );
         });
       }
-    } catch {}
+    } catch (err) {
+      console.warn('GPS fetch failed, falling back to latestGps', err);
+    }
 
     const payload = {
       branch_id: selectedBranch.id,
@@ -456,23 +463,31 @@ export function Queue() {
     try {
       // In Demo Mode, simulate success without real API call
       if (isDemoMode) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         setIsSubmitting(false);
         setSubmitModalOpen(false);
         setTimerState('success');
-        try { navigator.vibrate?.(200); } catch {}
+        try { navigator.vibrate?.(200); } catch { }
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
         return;
       }
 
-      if (!navigator.onLine) throw new Error('Offline');
-      
+      if (!navigator.onLine) {
+        throw new Error('Offline mode detected');
+      }
+
       const res = await fetch(isPreQueue ? '/api/prequeue' : '/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('API Error');
+
+      if (!res.ok) {
+        // Explicitly try to capture specific error
+        let errorData = null;
+        try { errorData = await res.json(); } catch (jsonErr) { }
+        throw new Error(errorData?.message || `API Error: ${res.status}`);
+      }
 
       // SECURITY: Gap 10 - update device tier signal locally after a confirmed server submission.
       try {
@@ -482,32 +497,42 @@ export function Queue() {
         const submissionCount = (prev.submissionCount || 0) + 1;
         const tier = submissionCount === 0 ? 1 : submissionCount <= 4 ? 2 : 3;
         localStorage.setItem(accessKey, JSON.stringify({ ...prev, tier, submissionCount, lastFetchedAt: prev.lastFetchedAt || null }));
-      } catch {}
+      } catch (tierError) {
+        console.warn('Failed to update tier', tierError);
+      }
       setIsSubmitting(false);
       setSubmitModalOpen(false);
       setTimerState('success');
-      try { navigator.vibrate?.(200); } catch {}
+      try { navigator.vibrate?.(200); } catch { }
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
-    } catch (e) {
-      // SCENARIO 1: Offline Logic
-      const pendingJson = localStorage.getItem('ligtaslto_pending_submissions') || '[]';
-      const pending = JSON.parse(pendingJson);
-      pending.push(payload);
-      localStorage.setItem('ligtaslto_pending_submissions', JSON.stringify(pending));
-      
-      if ('serviceWorker' in navigator && 'SyncManager' in window) {
-        const reg = await navigator.serviceWorker.ready;
-        try {
-          // @ts-ignore
-          await reg.sync.register('sync-submissions');
-        } catch(e) {}
-      }
-
-      // Reset submit button on error, don't navigate to success
+    } catch (e: any) {
+      console.error('Submission failed:', e);
       setIsSubmitting(false);
-      const btn = document.getElementById('submit-btn');
-      if (btn) btn.innerHTML = 'I-submit';
-      toast.error('Hindi na-send. Na-save namin — i-uupload pag may signal.', { duration: 4000 });
+
+      const isNetworkOrOffline = e.message.includes('Offline') || e.message.includes('Failed to fetch') || e.name === 'TypeError';
+
+      if (isNetworkOrOffline) {
+        // SCENARIO 1: Offline Logic
+        const pendingJson = localStorage.getItem('ligtaslto_pending_submissions') || '[]';
+        const pending = JSON.parse(pendingJson);
+        pending.push(payload);
+        localStorage.setItem('ligtaslto_pending_submissions', JSON.stringify(pending));
+
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            // @ts-ignore
+            await reg.sync.register('sync-submissions');
+          } catch (swError) {
+            console.warn('SW Sync failed:', swError);
+          }
+        }
+
+        toast.error('Wala kang signal. I-uupload ang ulat mamaya pag may net na.', { duration: 4000 });
+      } else {
+        // SCENARIO: Validation or Other Server Errors (400, 500)
+        toast.error(`Error: ${e.message}`, { duration: 5000 });
+      }
     }
   };
 
@@ -544,22 +569,22 @@ export function Queue() {
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Type (Required)</label>
         <div className="flex gap-3">
-           <button
-             onClick={() => setQueueType('walk-in')}
-             className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
-           >
-             <span className="inline-flex items-center justify-center gap-2">
-               {strings.queueTypeWalkin}
-             </span>
-           </button>
-           <button
-             onClick={() => setQueueType('appointment')}
-             className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
-           >
-             <span className="inline-flex items-center justify-center gap-2">
-               {strings.queueTypeAppointment}
-             </span>
-           </button>
+          <button
+            onClick={() => setQueueType('walk-in')}
+            className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
+          >
+            <span className="inline-flex items-center justify-center gap-2">
+              {strings.queueTypeWalkin}
+            </span>
+          </button>
+          <button
+            onClick={() => setQueueType('appointment')}
+            className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
+          >
+            <span className="inline-flex items-center justify-center gap-2">
+              {strings.queueTypeAppointment}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -643,8 +668,8 @@ export function Queue() {
       </div>
 
       <div className="flex items-center gap-3 mt-4">
-         <input type="checkbox" id="companion" checked={isCompanion} onChange={(e) => setIsCompanion(e.target.checked)} className="w-5 h-5 accent-[#E63946]" />
-         <label htmlFor="companion" className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.companionToggle}</label>
+        <input type="checkbox" id="companion" checked={isCompanion} onChange={(e) => setIsCompanion(e.target.checked)} className="w-5 h-5 accent-[#E63946]" />
+        <label htmlFor="companion" className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.companionToggle}</label>
       </div>
 
       {geofenceError && (
@@ -680,7 +705,7 @@ export function Queue() {
           {offlineSyncMessage}
         </div>
       )}
-      
+
       {isPreQueue && (
         <div className="mx-6 mb-4 border border-[#3B82F6] bg-[#3B82F6]/10 p-3 rounded-lg text-[13px] font-bold text-[#3B82F6] text-center">
           {strings.prequeueBanner}
@@ -701,14 +726,14 @@ export function Queue() {
               <div className="text-[11px] text-on-surface-variant dark:text-slate-400 mt-0.5">{transactionType}</div>
             </div>
             <div className="flex shrink-0">
-                  {wakeLockActive && (
-                    <div className="flex items-center justify-center gap-1 px-2 py-0.5 rounded-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold select-none border border-amber-500/30">
-                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                        screen_lock_portrait
-                      </span>
-                      Screen aktibo
-                    </div>
-                  )}
+              {wakeLockActive && (
+                <div className="flex items-center justify-center gap-1 px-2 py-0.5 rounded-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold select-none border border-amber-500/30">
+                  <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                    screen_lock_portrait
+                  </span>
+                  Screen aktibo
+                </div>
+              )}
             </div>
           </div>
 
@@ -792,28 +817,28 @@ export function Queue() {
       {/* Scenario 6: PUNO Button */}
       {!isPreQueue && !isPunoConfirmed && (
         <div className="px-6 mb-8 mt-4">
-           <button onClick={reportPuno} className="w-full py-3 border border-red-500 text-red-500 rounded-xl font-bold text-sm hover:bg-red-500 hover:text-white transition-colors">
-              {strings.punoReportBtn}
-           </button>
+          <button onClick={reportPuno} className="w-full py-3 border border-red-500 text-red-500 rounded-xl font-bold text-sm hover:bg-red-500 hover:text-white transition-colors">
+            {strings.punoReportBtn}
+          </button>
         </div>
       )}
       {isPunoConfirmed && (
         <div className="mx-6 mb-8 border border-red-500 bg-red-500 text-white p-3 rounded-lg text-[13px] font-bold text-center">
-           <span className="inline-flex items-center justify-center gap-2">
-             Na-report na rito bilang PUNO.
-           </span>{' '}
-           Salamat!
+          <span className="inline-flex items-center justify-center gap-2">
+            Na-report na rito bilang PUNO.
+          </span>{' '}
+          Salamat!
         </div>
       )}
 
       {/* Force override submit if milestones are skipped */}
       <div className="px-6">
-          <button
-            onClick={openSubmitModal}
-            className="w-full bg-gray-600 text-white py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 active:scale-[0.98]"
-          >
-            Force Submit / Tapos na ako
-          </button>
+        <button
+          onClick={openSubmitModal}
+          className="w-full bg-gray-600 text-white py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 active:scale-[0.98]"
+        >
+          Force Submit / Tapos na ako
+        </button>
       </div>
     </motion.div>
   );
@@ -826,35 +851,35 @@ export function Queue() {
     const waitTimeText = hrs > 0 ? `${hrs} oras ${mins} minuto` : `${mins} minuto`;
 
     return (
-    <div className="fixed inset-0 z-[60] bg-white dark:bg-slate-900 text-center flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        <div className="w-[80px] h-[80px] mb-6 flex items-center justify-center">
-          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="40" cy="40" r="38" fill="#10B981" fillOpacity="0.15" />
-            <circle cx="40" cy="40" r="38" stroke="#10B981" strokeWidth="4" />
-            <path d="M27 41.5L36.2 50.7L53.5 33.4" stroke="#10B981" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+      <div className="fixed inset-0 z-[60] bg-white dark:bg-slate-900 text-center flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
+          <div className="w-[80px] h-[80px] mb-6 flex items-center justify-center">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="40" cy="40" r="38" fill="#10B981" fillOpacity="0.15" />
+              <circle cx="40" cy="40" r="38" stroke="#10B981" strokeWidth="4" />
+              <path d="M27 41.5L36.2 50.7L53.5 33.4" stroke="#10B981" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
 
-        <div className="text-[20px] font-bold leading-snug text-slate-900 dark:text-slate-100 mb-3">
-          Tapos ka na! Salamat sa iyong tulong.
-        </div>
+          <div className="text-[20px] font-bold leading-snug text-slate-900 dark:text-slate-100 mb-3">
+            Tapos ka na! Salamat sa iyong tulong.
+          </div>
 
-        <div className="text-[18px] font-semibold text-on-surface-variant dark:text-slate-400 mb-8">
-          Naghintay ka ng {waitTimeText}
-        </div>
+          <div className="text-[18px] font-semibold text-on-surface-variant dark:text-slate-400 mb-8">
+            Naghintay ka ng {waitTimeText}
+          </div>
 
-        <div className="w-full mt-4">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="w-full py-4 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-[15px]"
-          >
-            Bumalik sa Home
-          </button>
+          <div className="w-full mt-4">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="w-full py-4 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-[15px]"
+            >
+              Bumalik sa Home
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     );
   };
 
@@ -956,14 +981,14 @@ export function Queue() {
           </div>
         )}
       </AnimatePresence>
-      
+
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
               try {
                 (window as any)?.ligtasltoWakeLock?.releaseWakeLock?.();
-              } catch {}
+              } catch { }
               navigate(-1);
             }}
             className={`p-2.5 rounded-full border ${isDark ? 'bg-slate-800 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900'}`}
@@ -979,11 +1004,11 @@ export function Queue() {
       </header>
 
       <div className="relative z-[1]">
-      <AnimatePresence mode="wait">
-        {timerState === 'setup' && renderSetup()}
-        {timerState === 'active' && renderActive()}
-        {timerState === 'success' && renderSuccess()}
-      </AnimatePresence>
+        <AnimatePresence mode="wait">
+          {timerState === 'setup' && renderSetup()}
+          {timerState === 'active' && renderActive()}
+          {timerState === 'success' && renderSuccess()}
+        </AnimatePresence>
       </div>
 
       <AnimatePresence>
@@ -992,7 +1017,7 @@ export function Queue() {
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              // Backdrop does NOT close modal (prevent accidental dismissal)
+            // Backdrop does NOT close modal (prevent accidental dismissal)
             />
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
@@ -1028,9 +1053,8 @@ export function Queue() {
                       <button
                         type="button"
                         onClick={() => setHasPlasticReview(true)}
-                        className={`flex-1 h-[80px] rounded-[20px] bg-emerald-500 dark:bg-emerald-700 text-white border border-emerald-500/30 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
-                          hasPlasticReview === true ? 'ring-2 ring-white/30' : ''
-                        }`}
+                        className={`flex-1 h-[80px] rounded-[20px] bg-emerald-500 dark:bg-emerald-700 text-white border border-emerald-500/30 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${hasPlasticReview === true ? 'ring-2 ring-white/30' : ''
+                          }`}
                       >
                         <svg width="44" height="28" viewBox="0 0 44 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                           <rect x="2" y="3" width="40" height="22" rx="5" fill="rgba(255,255,255,0.95)" />
@@ -1044,9 +1068,8 @@ export function Queue() {
                       <button
                         type="button"
                         onClick={() => setHasPlasticReview(false)}
-                        className={`flex-1 h-[80px] rounded-[20px] bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
-                          hasPlasticReview === false ? 'ring-2 ring-black/10 dark:ring-white/10' : ''
-                        }`}
+                        className={`flex-1 h-[80px] rounded-[20px] bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${hasPlasticReview === false ? 'ring-2 ring-black/10 dark:ring-white/10' : ''
+                          }`}
                       >
                         <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                           <path
@@ -1068,31 +1091,35 @@ export function Queue() {
 
               {/* Scenario 12: Hold to submit */}
               <div className="flex-shrink-0 relative">
-                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{isDemoMode ? 'I-tap para isumite.' : strings.holdToSubmitLabel}</p>
-                  <style dangerouslySetInnerHTML={{ __html: `
+                <p className="text-center text-xs font-bold text-gray-500 mb-2">{isDemoMode ? 'I-tap para isumite.' : strings.holdToSubmitLabel}</p>
+                <style dangerouslySetInnerHTML={{
+                  __html: `
                     @keyframes spin { to { transform: rotate(360deg); } }
                     .submit-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
                   `}} />
-                  <button
-                    id="submit-btn"
-                    {...HANDLE_HOLD_TO_SUBMIT(handleFinalSubmit)}
-                    disabled={(hasPlasticReview === null && !isPreQueue) || isSubmitting}
-                    className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none transition-all ${
-                      (hasPlasticReview === null && !isPreQueue)
-                        ? 'bg-gray-200 text-gray-400 opacity-40 cursor-not-allowed'
-                        : isSubmitting
-                          ? 'bg-[#E63946] text-white opacity-80 cursor-not-allowed'
-                          : 'bg-[#E63946] text-white'
+                <button
+                  id="submit-btn"
+                  onClick={(e) => {
+                    if (isDemoMode) handleFinalSubmit(e);
+                  }}
+                  {...(isDemoMode ? {} : HANDLE_HOLD_TO_SUBMIT(handleFinalSubmit))}
+                  disabled={(hasPlasticReview === null && !isPreQueue) || isSubmitting}
+                  className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none transition-all ${(hasPlasticReview === null && !isPreQueue)
+                      ? 'bg-gray-200 text-gray-400 opacity-40 cursor-not-allowed'
+                      : isSubmitting
+                        ? 'bg-[#E63946] text-white opacity-80 cursor-not-allowed'
+                        : 'bg-[#E63946] text-white'
                     }`}
-                    style={{ WebkitUserSelect: 'none', touchAction: 'none' }}
-                  >
-                    <div className="relative z-10">
-                      {isSubmitting ? (<><span className="submit-spinner"></span>Nagsu-submit...</>) : (isDemoMode ? 'I-submit' : 'Pindutin nang matagal (2s)')}
-                    </div>
-                    <div className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-[2000ms] w-0 -z-0 ease-linear [parent.holding_&]:w-full" />
-                  </button>
+                  style={{ WebkitUserSelect: 'none', touchAction: 'none' }}
+                >
+                  <div className="relative z-10">
+                    {isSubmitting ? (<><span className="submit-spinner"></span>Nagsu-submit...</>) : (isDemoMode ? 'I-submit' : 'Pindutin nang matagal (2s)')}
+                  </div>
+                  <div className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-[2000ms] w-0 -z-0 ease-linear [parent.holding_&]:w-full" />
+                </button>
 
-                  <style dangerouslySetInnerHTML={{ __html: `
+                <style dangerouslySetInnerHTML={{
+                  __html: `
                     button.holding div.absolute { width: 100%; transition: width 2s linear; }
                     button:not(.holding) div.absolute { width: 0%; transition: width 0.1s linear; }
                   `}} />

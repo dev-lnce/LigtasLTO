@@ -8,7 +8,8 @@ export const DEMO_BRANCHES = [
     lat: 14.6507,
     lng: 121.0499,
     distanceKm: 3.2,
-    operatingHours: '08:00–17:00',
+    distance: "3.2",
+    operatingHours: '08:00-17:00',
     thumbnailUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAt5TLnAull670qLVuHpgUZVwqv2F2JqTBZ9sFCxYStOGjzeTLB2wM4rBrxgHhk0u-VE1GrivY06S3eb1g9h8_-lhLy_XRjPhiYSlc65Vbr6KmyYC8IMVaAyHS2CIkZ9Tu6PZxOR2Xd8u2GjFUQbb-rJ65al_IeeI9H7Kt3CDO2SvaqutsU9gFSxZ0rEspDSNFZA9jM8t6UiyP13yzdFP4T-pJAumZNyOoAJkaEVM15JGYA5oik_2d2GLXjzoHqfn903ObiZb85i3X7',
     hasPlasticCards: true,
@@ -40,7 +41,8 @@ export const DEMO_BRANCHES = [
     lat: 14.6195,
     lng: 121.0556,
     distanceKm: 5.1,
-    operatingHours: '08:00–17:00',
+    distance: "5.1",
+    operatingHours: '08:00-17:00',
     thumbnailUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDIVd2lrAYL1Qg54Pz7-Gt_TOD2GBPDKEIlDtl15TZEzlsW7sVg8EffwaNrQ-Uv7cS_mGrtChEILO-Siksfzkfm0FrUvUbi7j8CYMPV7-hYQxPi4ue_FPNgvNvMEj9kxIy0grVPAyj5ccUq0XegMJ0RH6G-kNM_D_OhMLMsDWrqulPE02c6MFePG_iymv38Ra69HV2wIJro8o6RTcyNYJh_XXSLGOUcGhyNlXI-EBkNmFsodhnj0N47lMbKQX6p3J520QdeyLJow7iG',
     hasPlasticCards: true,
@@ -73,7 +75,8 @@ export const DEMO_BRANCHES = [
     lat: 14.7199,
     lng: 121.0289,
     distanceKm: 7.8,
-    operatingHours: '08:00–17:00',
+    distance: "7.8",
+    operatingHours: '08:00-17:00',
     thumbnailUrl:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDIVd2lrAYL1Qg54Pz7-Gt_TOD2GBPDKEIlDtl15TZEzlsW7sVg8EffwaNrQ-Uv7cS_mGrtChEILO-Siksfzkfm0FrUvUbi7j8CYMPV7-hYQxPi4ue_FPNgvNvMEj9kxIy0grVPAyj5ccUq0XegMJ0RH6G-kNM_D_OhMLMsDWrqulPE02c6MFePG_iymv38Ra69HV2wIJro8o6RTcyNYJh_XXSLGOUcGhyNlXI-EBkNmFsodhnj0N47lMbKQX6p3J520QdeyLJow7iG',
     hasPlasticCards: false,
