@@ -1,26 +1,18 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import { useTheme } from './ThemeContext';
-import { DEMO_MODE } from '../config.js';
 import { vibrateSafe } from './utils/haptics';
 
 export function Root() {
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme, isDemoMode, toggleDemoMode, demoDistanceKm, setDemoDistanceKm, demoAddedWaitMins, setDemoAddedWaitMins, transactionType, setTransactionType } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDemoSheetOpen, setDemoSheetOpen] = React.useState(false);
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [city, setCity] = React.useState('Quezon City, NCR'); // FIX 2: Store detected city in Root state for the global header pill.
   const [isLocationModalOpen, setLocationModalOpen] = React.useState(false); // FIX 2: Make location picker accessible from header on all screens.
-  const [langMode, setLangMode] = React.useState<'eng' | 'fil'>(() => {
-    try {
-      return localStorage.getItem('ligtaslto_lang') === 'fil' ? 'fil' : 'eng';
-    } catch {
-      return 'eng';
-    }
-  });
-
   const [isOnboardingOpen, setOnboardingOpen] = React.useState(false);
-  const [isOnboarded, setIsOnboarded] = React.useState(true);
 
   type NotificationType = 'anomaly' | 'warning' | 'update';
   type NotificationItem = { id: string; type: NotificationType; title: string; description: string; createdAt: number };
@@ -48,14 +40,14 @@ export function Root() {
 
   React.useEffect(() => {
     // FIX 5: Lock background scrolling when overlays are open.
-    const shouldLock = isNotifOpen || isLocationModalOpen || isOnboardingOpen;
+    const shouldLock = isNotifOpen || isLocationModalOpen || isOnboardingOpen || isDemoSheetOpen;
     if (!shouldLock) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [isNotifOpen, isLocationModalOpen, isOnboardingOpen]);
+  }, [isNotifOpen, isLocationModalOpen, isOnboardingOpen, isDemoSheetOpen]);
 
   React.useEffect(() => {
     // FIX 1/2: Allow any screen (e.g. Home hero buttons) to open the global drawer/modals without prop drilling.
@@ -73,25 +65,13 @@ export function Root() {
   }, []);
 
   React.useEffect(() => {
-    // FIX 4A: Show onboarding overlay on first open.
-    try {
-      const onb = window.ligtasltoOnboarding;
-      const onboarded = Boolean(onb?.isOnboarded?.());
-      setIsOnboarded(onboarded);
-      setOnboardingOpen(!onboarded);
-    } catch {
-      setIsOnboarded(true);
+    // FIX 4A: Show onboarding overlay if no transaction type is selected.
+    if (!transactionType) {
+      setOnboardingOpen(true);
+    } else {
       setOnboardingOpen(false);
     }
-
-    const onComplete = () => {
-      setIsOnboarded(true);
-      setOnboardingOpen(false);
-      navigate('/');
-    };
-    window.addEventListener('ligtaslto:onboarding-complete', onComplete as any);
-    return () => window.removeEventListener('ligtaslto:onboarding-complete', onComplete as any);
-  }, [navigate]);
+  }, [transactionType]);
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Tahanan' },
@@ -100,18 +80,11 @@ export function Root() {
     { path: '/pre-check', icon: 'fact_check', label: 'Pre-Check' },
   ];
 
-  const headerTopClass = DEMO_MODE ? 'top-7' : 'top-0';
-
   return (
     <div className={`min-h-screen bg-surface dark:bg-slate-900 text-on-surface dark:text-slate-100 selection:bg-primary-fixed pb-32`}>
       {/* FIX 4: Dark mode is applied via <html class="dark"> (see ThemeContext + main.tsx bootstrap). */}
-      {DEMO_MODE && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-amber-400 text-amber-900 text-[11px] font-bold text-center py-1.5 px-4 w-full">
-          DEMO MODE — Location checks disabled
-        </div>
-      )}
 
-      <header className={`fixed ${headerTopClass} w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-lg shadow-sm dark:shadow-none`}>
+      <header className={`fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-lg shadow-sm dark:shadow-none pt-[env(safe-area-inset-top,16px)]`}>
         <div className="flex items-center justify-between px-6 py-4 w-full">
           <div className="flex items-center gap-3">
             <div className="flex flex-col gap-0.5 p-2 bg-on-surface rounded-lg">
@@ -120,63 +93,58 @@ export function Root() {
               <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-2xl font-extrabold text-red-600 dark:text-red-500 tracking-tighter font-['Plus_Jakarta_Sans'] leading-none">
+              <h1
+                className="text-2xl font-extrabold text-red-600 dark:text-red-500 tracking-tighter font-['Plus_Jakarta_Sans'] leading-none select-none cursor-pointer"
+                onPointerDown={() => {
+                  longPressTimerRef.current = setTimeout(() => {
+                    vibrateSafe(50);
+                    setDemoSheetOpen(true);
+                  }, 500);
+                }}
+                onPointerUp={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                onPointerCancel={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                onPointerLeave={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+              >
                 LigtasLTO
               </h1>
               <button
                 type="button"
                 onClick={() => setLocationModalOpen(true)}
-                className="text-[11px] font-semibold text-on-surface-variant dark:text-slate-400 flex items-center gap-1 mt-1"
+                className="text-[11px] font-semibold text-on-surface-variant dark:text-slate-400 flex items-center gap-1 mt-1 hover:opacity-80 transition-opacity"
                 aria-label="Buksan ang location picker"
               >
-                {/* FIX 2: Location pill replaces the redundant building icon and opens the existing picker. */}
                 <span className="material-symbols-outlined text-[14px]">location_on</span>
-                <span className="truncate max-w-[200px]">{city}</span>
+                <span className="truncate max-w-[200px] flex items-center gap-1">
+                  {city} ▾
+                </span>
               </button>
-
-              {isOnboarded && (
-                <button
-                  type="button"
-                  onClick={() => setOnboardingOpen(true)}
-                  className="text-[11px] font-bold text-primary underline underline-offset-2 mt-2"
-                >
-                  Palitan
-                </button>
-              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {/* Integrated Demo Mode Header Indicator & Dropdown Trigger */}
+            <button
+              onClick={() => setDemoSheetOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors active:scale-95 border border-slate-200 dark:border-slate-700"
+              aria-label="Toggle Demo Menu"
+            >
+              <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300">Mode</span>
+              <div
+                className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-colors duration-300 ${isDemoMode ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300 dark:bg-red-500'}`}
+                title={isDemoMode ? 'Demo Mode ON' : 'Demo Mode OFF'}
+              />
+            </button>
+
             <button
               aria-label="Notifications"
               onClick={() => {
-                setNotifOpen(true); // FIX 1: Bell now opens the slide-in notification drawer.
-                setLastNotifSeenAt(Date.now()); // FIX 1: Opening the drawer clears the unread badge.
+                setNotifOpen(true);
+                setLastNotifSeenAt(Date.now());
               }}
               className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-95 duration-200 text-slate-500"
             >
               <span className="material-symbols-outlined">notifications</span>
-              {hasUnreadNotifs && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-error" />} {/* FIX 1: Unread dot hides after open and returns only on new notif. */}
-            </button>
-
-            {/* FIX 5A: Language toggle (FIL/ENG) */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = langMode === 'fil' ? 'eng' : 'fil';
-                setLangMode(next);
-                try {
-                  window.ligtasltoStringsFil?.setLangMode?.(next);
-                } catch {}
-              }}
-              className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-colors active:scale-95 ${
-                langMode === 'fil'
-                  ? 'bg-blue-900 text-blue-300 border-blue-500/50'
-                  : 'bg-surface-container-lowest dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-outline-variant/10'
-              }`}
-              aria-label="Language mode"
-            >
-              {langMode === 'fil' ? 'FIL' : 'ENG'}
+              {hasUnreadNotifs && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-error" />}
             </button>
 
             <button
@@ -286,11 +254,87 @@ export function Root() {
         </div>
       )}
 
-      <main className={`px-6 max-w-2xl mx-auto ${DEMO_MODE ? 'pt-32' : 'pt-24'}`}>
+      {/* Amber Demo Mode banner removed and integrated into header */}
+
+      <main className="px-6 max-w-2xl mx-auto pb-8 pt-[env(safe-area-inset-top,16px)]" style={{ marginTop: '5rem' }}>
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-[0_-8px_32px_rgba(25,28,30,0.04)] rounded-t-[2.5rem]">
+      {/* Demo Simulation Controls Panel — only visible with ?devtools=true */}
+      {isDemoMode && typeof window !== 'undefined' && window.location.search.includes('devtools=true') && (
+        <div className="fixed bottom-[108px] left-4 right-4 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-3xl shadow-2xl border border-[#E63946]/30 dark:border-[#E63946]/50 transition-all">
+          <div className="flex justify-between items-center z-10 relative mb-3">
+             <span className="text-xs font-black uppercase tracking-wider text-[#E63946]">Demo Sandbox</span>
+          </div>
+          <div className="relative z-10 flex flex-col gap-3">
+             <div>
+               <div className="flex justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                 <span>Mock Distance</span>
+                 <span>{demoDistanceKm} km</span>
+               </div>
+               <input type="range" min="0" max="25" step="0.5" value={demoDistanceKm} onChange={(e) => setDemoDistanceKm(Number(e.target.value))} className="w-full accent-[#E63946]" />
+             </div>
+             <div>
+               <div className="flex justify-between text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                 <span>Mock Wait Time Offset</span>
+                 <span>+{demoAddedWaitMins} mins</span>
+               </div>
+               <input type="range" min="0" max="120" step="5" value={demoAddedWaitMins} onChange={(e) => setDemoAddedWaitMins(Number(e.target.value))} className="w-full accent-[#E63946]" />
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Demo Mode Bottom Sheet — opened via long-press on logo */}
+      <div className={`fixed inset-0 z-[9999] ${isDemoSheetOpen ? 'pointer-events-auto' : 'pointer-events-none'}`} aria-hidden={!isDemoSheetOpen}>
+        <button
+          type="button"
+          className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${isDemoSheetOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => setDemoSheetOpen(false)}
+          aria-label="Isara"
+        />
+        <div
+          className={`absolute inset-x-0 bottom-0 mx-auto w-full max-w-lg bg-surface-container-lowest dark:bg-slate-900 rounded-t-[24px] border-t border-outline-variant/10 dark:border-slate-700/30 shadow-2xl transition-transform duration-[250ms] ease-out ${
+            isDemoSheetOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+        >
+          <div className="flex justify-center pt-3">
+            <div className="w-8 h-1 bg-slate-400/30 dark:bg-slate-600 rounded-full" />
+          </div>
+          <div className="px-6 py-5">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-extrabold text-lg text-on-surface dark:text-slate-100">Demo Mode</h3>
+              <button
+                type="button"
+                onClick={() => setDemoSheetOpen(false)}
+                className="p-2 rounded-full bg-surface-container-low dark:bg-slate-700/50 text-on-surface dark:text-slate-100"
+                aria-label="Isara"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-bold text-[15px] text-on-surface dark:text-slate-100">{isDemoMode ? 'ON' : 'OFF'}</div>
+                <div className="text-[12px] text-on-surface-variant dark:text-slate-400 mt-0.5">
+                  {isDemoMode ? 'Location checks disabled, using demo data' : 'Production mode — real location checks'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleDemoMode}
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${isDemoMode ? 'bg-[#E63946]' : 'bg-slate-300 dark:bg-slate-600'}`}
+                aria-label="Toggle demo mode"
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${isDemoMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-[0_-8px_32px_rgba(25,28,30,0.04)] rounded-t-[2.5rem]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)' }}>
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           const iconFill = isActive ? "font-variation-settings: 'FILL' 1;" : undefined;
@@ -304,14 +348,17 @@ export function Root() {
               }}
               className={
                 isActive
-                  ? "flex flex-col items-center justify-center bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded-full px-5 py-2 transition-transform active:scale-90"
-                  : "flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-5 py-2 hover:text-red-500 dark:hover:text-red-300 transition-transform active:scale-90"
+                  ? "flex flex-col items-center justify-center text-red-600 dark:text-red-400 w-[76px] h-[56px] transition-transform active:scale-90 relative"
+                  : "flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 w-[76px] h-[56px] hover:text-red-500 dark:hover:text-red-300 transition-transform active:scale-90 relative"
               }
             >
+              {isActive && (
+                <div className="absolute w-12 h-12 bg-red-50 dark:bg-red-950/40 rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ zIndex: -1 }} />
+              )}
               <span className="material-symbols-outlined" style={iconFill ? ({ fontVariationSettings: "'FILL' 1" } as any) : undefined}>
                 {item.icon}
               </span>
-              <span className="font-['Plus_Jakarta_Sans'] text-[11px] font-semibold tracking-wide uppercase mt-1">
+              <span className="font-['Plus_Jakarta_Sans'] text-[10px] font-bold tracking-wide uppercase mt-1">
                 {item.label}
               </span>
             </button>
@@ -333,7 +380,7 @@ export function Root() {
               <button
                 type="button"
                 className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Student Permit')}
+                onClick={() => setTransactionType('Student Permit')}
               >
                 <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                   menu_book
@@ -344,7 +391,7 @@ export function Root() {
               <button
                 type="button"
                 className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('License Renewal')}
+                onClick={() => setTransactionType('License Renewal')}
               >
                 <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                   credit_card
@@ -355,7 +402,7 @@ export function Root() {
               <button
                 type="button"
                 className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Vehicle Registration')}
+                onClick={() => setTransactionType('Vehicle Registration')}
               >
                 <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                   directions_car
@@ -366,7 +413,7 @@ export function Root() {
               <button
                 type="button"
                 className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.("Driver's License")}
+                onClick={() => setTransactionType("Driver's License")}
               >
                 <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                   badge
@@ -377,7 +424,7 @@ export function Root() {
               <button
                 type="button"
                 className="col-span-2 h-[72px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex items-center justify-center gap-3 cursor-pointer"
-                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Hindi ko alam')}
+                onClick={() => setTransactionType('Hindi ko alam')}
               >
                 <span className="material-symbols-outlined text-[40px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                   help_outline

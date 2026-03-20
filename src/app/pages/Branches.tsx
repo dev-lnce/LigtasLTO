@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 import { strings } from '../../locales/strings.fil';
 import { Branch, getBranchesMock } from '../data/branches';
 import { BranchDetailsSheet } from '../components/BranchDetailsSheet';
@@ -11,8 +11,9 @@ import { SkeletonShimmer } from '../components/SkeletonShimmer';
 const FILTERS = ['Lahat', 'May Plastic', 'Mabilis', 'May Flag'];
 
 export function Branches() {
-  const { isDark } = useTheme();
+  const { isDark, isDemoMode, demoDistanceKm, demoAddedWaitMins, getAdjustedWaitTime } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [activeFilter, setActiveFilter] = useState('Lahat');
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,23 +26,89 @@ export function Branches() {
   // Scenario 5: Intent State
   const [intentBranches, setIntentBranches] = useState<Record<string, boolean>>({});
 
+  // Distinct Data Path mapping
+  const adjustedBranches = useMemo(() => {
+    return branches.map(b => ({
+      ...b,
+      walkinAvgMinutes: getAdjustedWaitTime(b.walkinAvgMinutes),
+      appointmentAvgMinutes: getAdjustedWaitTime(b.appointmentAvgMinutes),
+    }));
+  }, [branches, getAdjustedWaitTime]);
+
+  // Read ?filter= URL param on mount to pre-apply filter
   useEffect(() => {
-    // IMPROVEMENT 3: Async-load the shared branches list for consistent flags (PUNO/anomaly/etc).
+    try {
+      const params = new URLSearchParams(location.search);
+      const filterParam = params.get('filter');
+      if (filterParam) {
+        const filterMap: Record<string, string> = {
+          'may-plastic': 'May Plastic',
+          'mabilis': 'Mabilis',
+          'may-flag': 'May Flag',
+        };
+        const mapped = filterMap[filterParam];
+        if (mapped) setActiveFilter(mapped);
+      }
+    } catch {}
+  }, [location.search]);
+
+  useEffect(() => {
     let mounted = true;
     setLoading(true);
-    getBranchesMock()
-      .then((data) => {
+
+    const loadData = async () => {
+      try {
+        const data = await getBranchesMock();
         if (!mounted) return;
-        setBranches(data);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
+
+        if (isDemoMode) {
+          // DEMO MODE: Mock location and queue queue times using demo controls
+          const processedData = data.map((b, i) => ({
+            ...b,
+            distanceKm: parseFloat((demoDistanceKm + (i * 1.5) % 8).toFixed(1)),
+            walkinAvgMinutes: Math.max(0, b.walkinAvgMinutes + demoAddedWaitMins),
+            appointmentAvgMinutes: Math.max(0, b.appointmentAvgMinutes + Math.floor(demoAddedWaitMins / 2)),
+          }));
+          setBranches(processedData);
+          setLoading(false);
+        } else {
+          // REAL MODE: Get real geolocation
+          if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                console.log('Real coordinates: ', pos.coords.latitude, pos.coords.longitude);
+                if (mounted) {
+                  setBranches(data);
+                  setLoading(false);
+                }
+              },
+              (err) => {
+                console.warn('Geolocation fallback:', err);
+                if (mounted) {
+                  setBranches(data);
+                  setLoading(false);
+                }
+              },
+              { enableHighAccuracy: true, timeout: 5000 }
+            );
+          } else {
+            if (mounted) {
+              setBranches(data);
+              setLoading(false);
+            }
+          }
+        }
+      } catch (e) {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadData();
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isDemoMode, demoDistanceKm, demoAddedWaitMins]);
 
   useEffect(() => {
     // FIX 4A: Read onboarding transaction selection.
@@ -60,8 +127,8 @@ export function Branches() {
 
   // Filter Logic
   const filteredBranches = useMemo(() => {
-    const baseFiltered = branches.filter((b) => {
-      if (searchQuery.length >= 2) {
+    const baseFiltered = adjustedBranches.filter((b) => {
+      if (searchQuery.length >= 1) {
         const q = searchQuery.toLowerCase();
         if (!b.name.toLowerCase().includes(q) && !b.address.toLowerCase().includes(q)) return false;
       }
@@ -215,7 +282,7 @@ export function Branches() {
       {featured && (
         <div className="mt-8 relative">
           <div
-            className="bg-surface-container-lowest dark:bg-slate-800 rounded-lg overflow-hidden shadow-[0_8px_32px_rgba(25,28,30,0.06)] border border-outline-variant/10 dark:border-slate-700/30 group cursor-pointer"
+            className="bg-surface-container-lowest dark:bg-slate-800 rounded-[12px] h-[auto] overflow-hidden shadow-[0_8px_32px_rgba(25,28,30,0.06)] border border-outline-variant/10 dark:border-slate-700/30 group cursor-pointer"
             onClick={() => openDetails(featured)} // FIX 5: Card tap opens details (not a silent no-op).
           >
             <div className="relative h-48 w-full overflow-hidden">
@@ -235,7 +302,7 @@ export function Branches() {
               )}
             </div>
 
-            <div className="p-6">
+            <div className="p-[16px]">
               <div className="flex justify-between items-start gap-4">
                 <div className="min-w-0">
                   <h2 className="text-2xl font-bold tracking-tight text-on-surface dark:text-slate-100">{featured.name}</h2>
@@ -260,18 +327,18 @@ export function Branches() {
               </div>
 
               <div className="grid grid-cols-2 gap-4 mt-8">
-                <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                <div className="bg-surface-container-low dark:bg-slate-700 p-[16px] rounded-[12px] h-[auto] border border-outline-variant/5 dark:border-slate-700/30">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Walk-in</span>
+                    <span className="text-[10px] font-[600] text-tertiary uppercase tracking-[0.08em]">Walk-in</span>
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.walkinAvgMinutes)}`}>{Math.round(featured.walkinAvgMinutes / 60 * 10) / 10}h</span> {/* FIX 7: Use shared minutes-based value. */}
                     <span className={`material-symbols-outlined ${waitTone(featured.walkinAvgMinutes)} text-lg`}>trending_up</span>
                   </div>
                 </div>
-                <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
+                <div className="bg-surface-container-low dark:bg-slate-700 p-[16px] rounded-[12px] h-[auto] border border-outline-variant/5 dark:border-slate-700/30">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Appointment</span>
+                    <span className="text-[10px] font-[600] text-tertiary uppercase tracking-[0.08em]">Appointment</span>
                   </div>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.appointmentAvgMinutes)}`}>{featured.appointmentAvgMinutes}m</span> {/* FIX 7: Use shared appointment average minutes. */}
@@ -347,9 +414,9 @@ export function Branches() {
                       e.stopPropagation();
                       goQueue(featured);
                     }}
-                    className="flex-1 py-3 rounded-full bg-primary text-white font-bold text-sm shadow-md shadow-primary/20 active:scale-95 transition-transform"
+                    className="flex-1 py-3 rounded-full bg-primary text-white dark:bg-white dark:text-slate-900 font-bold text-sm shadow-md shadow-primary/20 active:scale-95 transition-transform"
                   >
-                    Pumila Dito {/* FIX 6: Queue redirect is now a separate primary action. */}
+                    Pumila Dito
                   </button>
                 </div>
               )}
@@ -374,7 +441,7 @@ export function Branches() {
             {others.map((b) => (
               <div
                 key={b.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-surface-container-low dark:bg-slate-800/60 rounded-xl hover:bg-surface-container-high dark:hover:bg-slate-700 transition-colors cursor-pointer group"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-[16px] bg-surface-container-low dark:bg-slate-800/60 rounded-[12px] h-[auto] hover:bg-surface-container-high dark:hover:bg-slate-700 transition-colors cursor-pointer group"
                 onClick={() => openDetails(b)} // FIX 5: Row tap opens details.
               >
                 <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-high">
@@ -394,7 +461,7 @@ export function Branches() {
                     </div>
                     <div className="text-right">
                       <span className={`block text-sm font-black ${waitTone(b.walkinAvgMinutes)}`}>{Math.round(b.walkinAvgMinutes / 60 * 10) / 10}h</span>
-                      <span className="text-[9px] font-bold uppercase text-outline">Wait</span>
+                      <span className="text-[10px] font-[600] uppercase tracking-[0.08em] text-tertiary">Wait</span>
                     </div>
                   </div>
 
@@ -480,9 +547,9 @@ export function Branches() {
                           e.stopPropagation();
                           goQueue(b);
                         }}
-                        className="flex-1 py-2 rounded-full bg-primary text-white font-bold text-xs shadow-md shadow-primary/20 active:scale-95 transition-transform"
+                        className="flex-1 py-2 rounded-full bg-primary text-white dark:bg-white dark:text-slate-900 font-bold text-xs shadow-md shadow-primary/20 active:scale-95 transition-transform"
                       >
-                        Pumila Dito {/* FIX 6/7: Separate queue redirect button on rows. */}
+                        Pumila Dito
                       </button>
                     </div>
                   )}

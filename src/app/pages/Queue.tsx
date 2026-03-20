@@ -6,7 +6,6 @@ import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { CHECK_GEOFENCE, IS_DURING_LUNCH_BREAK, HANDLE_HOLD_TO_SUBMIT } from '../../utils/scenarioGuards';
 import { strings } from '../../locales/strings.fil';
-import { DEMO_MODE } from '../../config.js';
 import { demoBranches } from '../../demoBranches.js';
 import { BRANCHES } from '../data/branches';
 
@@ -61,7 +60,7 @@ const DEMO_BRANCHES: BranchOption[] = (demoBranches || []).map((b: any) => ({
 }));
 
 export function Queue() {
-  const { isDark } = useTheme();
+  const { isDark, isDemoMode } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -237,6 +236,13 @@ export function Queue() {
     }
   };
 
+  // Auto-redirect to Home 5 seconds after success
+  useEffect(() => {
+    if (timerState !== 'success') return;
+    const timer = setTimeout(() => navigate('/'), 5000);
+    return () => clearTimeout(timer);
+  }, [timerState, navigate]);
+
   // Timer & Blackout Effect
   const isFinalMilestoneDone = Boolean(milestones[3]?.timestamp);
   const currentActiveMilestoneIdxRaw = milestones.findIndex((m) => !m.timestamp);
@@ -287,7 +293,7 @@ export function Queue() {
 
     // Scenario 3: Geofence Check
     const geo = await CHECK_GEOFENCE(selectedBranch.lat, selectedBranch.lng);
-    if (!geo.allowed) {
+    if (!geo.allowed && !isDemoMode) {
       setGeofenceError(geo.error || strings.geofenceError);
       return;
     }
@@ -395,7 +401,7 @@ export function Queue() {
   const reportPuno = async () => {
     try {
       // Demo Mode: confirm locally so the UI flow completes even if backend isn't running.
-      if (DEMO_MODE) {
+      if (isDemoMode) {
         setIsPunoConfirmed(true);
         return;
       }
@@ -448,6 +454,17 @@ export function Queue() {
     };
 
     try {
+      // In Demo Mode, simulate success without real API call
+      if (isDemoMode) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setIsSubmitting(false);
+        setSubmitModalOpen(false);
+        setTimerState('success');
+        try { navigator.vibrate?.(200); } catch {}
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
+        return;
+      }
+
       if (!navigator.onLine) throw new Error('Offline');
       
       const res = await fetch(isPreQueue ? '/api/prequeue' : '/api/submissions', {
@@ -466,6 +483,11 @@ export function Queue() {
         const tier = submissionCount === 0 ? 1 : submissionCount <= 4 ? 2 : 3;
         localStorage.setItem(accessKey, JSON.stringify({ ...prev, tier, submissionCount, lastFetchedAt: prev.lastFetchedAt || null }));
       } catch {}
+      setIsSubmitting(false);
+      setSubmitModalOpen(false);
+      setTimerState('success');
+      try { navigator.vibrate?.(200); } catch {}
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
     } catch (e) {
       // SCENARIO 1: Offline Logic
       const pendingJson = localStorage.getItem('ligtaslto_pending_submissions') || '[]';
@@ -480,14 +502,13 @@ export function Queue() {
           await reg.sync.register('sync-submissions');
         } catch(e) {}
       }
-      setOfflineSyncMessage(strings.offlineBanner);
-    }
 
-    setIsSubmitting(false);
-    setSubmitModalOpen(false);
-    setTimerState('success');
-    try { navigator.vibrate?.(200); } catch {} // IMPROVEMENT 5: Haptic feedback on successful timer submission (200ms).
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#E63946', '#10B981', '#F59E0B'] });
+      // Reset submit button on error, don't navigate to success
+      setIsSubmitting(false);
+      const btn = document.getElementById('submit-btn');
+      if (btn) btn.innerHTML = 'I-submit';
+      toast.error('Hindi na-send. Na-save namin — i-uupload pag may signal.', { duration: 4000 });
+    }
   };
 
   const renderRecoveryModal = () => {
@@ -674,21 +695,21 @@ export function Queue() {
 
       <div className="px-6 mb-5">
         <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200')}`}>
-          <div className="w-full flex justify-between items-center mb-6">
-            <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</h2>
-                <div className="flex items-center gap-2">
-                  <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
-                    <span className={isDark ? 'text-blue-200/70' : 'text-gray-600'}>{transactionType}</span>
-                  </div>
+          <div className="w-full flex justify-between items-center mb-6 gap-3">
+            <div className={`flex flex-col items-start min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <div className="font-[500] text-[13px] truncate w-full text-left leading-tight">{selectedBranch.name}</div>
+              <div className="text-[11px] text-on-surface-variant dark:text-slate-400 mt-0.5">{transactionType}</div>
+            </div>
+            <div className="flex shrink-0">
                   {wakeLockActive && (
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400 text-amber-700 dark:text-amber-300 text-[10px] font-bold select-none">
-                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                    <div className="flex items-center justify-center gap-1 px-2 py-0.5 rounded-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold select-none border border-amber-500/30">
+                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>
                         screen_lock_portrait
                       </span>
                       Screen aktibo
                     </div>
                   )}
-                </div>
+            </div>
           </div>
 
           <div className={`mb-2 w-full flex justify-center items-center font-mono text-[3.5rem] leading-none font-black tracking-tighter ${getTimerColor()}`}>
@@ -707,7 +728,7 @@ export function Queue() {
               50%{box-shadow:0 0 0 8px rgba(183,16,42,0)}
             }
           `}</style>
-          <div className="flex flex-col gap-[10px] p-4">
+          <div className="flex flex-col gap-3 p-4">
             {milestones.map((m, idx) => {
               const isCompleted = Boolean(m.timestamp);
               const isActive = idx === activeMilestoneIdx && !isCompleted;
@@ -715,10 +736,10 @@ export function Queue() {
               const isDisabled = !isActive;
 
               const buttonClass = isActive
-                ? 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-[#B7102A] text-white'
+                ? 'w-full min-h-[72px] rounded-[16px] flex items-center gap-4 px-4 py-3 bg-[#B7102A] text-white'
                 : isCompleted
-                  ? 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400'
-                  : 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-surface-container-lowest dark:bg-slate-800 text-tertiary opacity-40 pointer-events-none';
+                  ? 'w-full min-h-[72px] rounded-[16px] flex items-center gap-4 px-4 py-3 bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400'
+                  : 'w-full min-h-[72px] rounded-[16px] flex items-center gap-4 px-4 py-3 bg-surface-container-lowest dark:bg-slate-800 text-tertiary opacity-40 pointer-events-none';
 
               const icon = isCompleted ? 'check_circle' : (m as any).icon;
               const iconClass = isActive
@@ -750,13 +771,13 @@ export function Queue() {
                     {icon}
                   </span>
 
-                  <div className="flex flex-col min-w-0 items-start">
-                    <div className="text-[16px] font-bold leading-tight">{m.label}</div>
-                    <div className={`text-[11px] font-normal italic leading-snug mt-[2px] opacity-80 ${noteColor}`}>
+                  <div className="flex flex-col min-w-0 items-start text-left w-full pr-1">
+                    <div className="text-[15px] font-bold leading-tight break-words">{m.label}</div>
+                    <div className={`text-[11px] font-normal italic leading-snug mt-1 opacity-80 line-clamp-2 w-full ${noteColor}`}>
                       {noteLines.map((ln, i) => (
                         <React.Fragment key={i}>
                           {ln}
-                          {i < noteLines.length - 1 && <br />}
+                          {i < noteLines.length - 1 && ' '}
                         </React.Fragment>
                       ))}
                     </div>
@@ -797,7 +818,14 @@ export function Queue() {
     </motion.div>
   );
 
-  const renderSuccess = () => (
+  const renderSuccess = () => {
+    // Format wait time
+    const totalSec = seconds;
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const waitTimeText = hrs > 0 ? `${hrs} oras ${mins} minuto` : `${mins} minuto`;
+
+    return (
     <div className="fixed inset-0 z-[60] bg-white dark:bg-slate-900 text-center flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-[80px] h-[80px] mb-6 flex items-center justify-center">
@@ -808,63 +836,27 @@ export function Queue() {
           </svg>
         </div>
 
-        <div className="text-[20px] font-bold leading-snug text-slate-900 dark:text-slate-100">
-          Tapos ka na! Salamat sa tulong mo sa inyong kapwa Pilipino.
-        </div>
-      </div>
-
-      <div className="w-full pb-8 px-6">
-        <div className="text-[18px] font-semibold text-slate-900 dark:text-slate-100 mb-4">
-          <span className="inline-flex items-center gap-2">
-            Nakatanggap ka ba ng PLASTIC CARD?
-          </span>
+        <div className="text-[20px] font-bold leading-snug text-slate-900 dark:text-slate-100 mb-3">
+          Tapos ka na! Salamat sa iyong tulong.
         </div>
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setHasPlasticReview(true);
-              toast.success('Na-record na. Salamat!', { duration: 2000 });
-              setTimeout(() => navigate('/'), 2000);
-            }}
-            className="flex-1 h-[80px] rounded-[20px] bg-emerald-500 dark:bg-emerald-700 text-white border border-emerald-500/30 flex flex-col items-center justify-center gap-1.5"
-          >
-            <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <rect x="2.5" y="3" width="35" height="22" rx="4" fill="rgba(255,255,255,0.95)" />
-              <rect x="2.5" y="3" width="35" height="6" rx="4" fill="rgba(16,185,129,0.25)" />
-              <rect x="8" y="14" width="17" height="2.5" rx="1.25" fill="#10B981" fillOpacity="0.9" />
-              <rect x="8" y="18" width="24" height="2.5" rx="1.25" fill="#10B981" fillOpacity="0.9" />
-            </svg>
-            <div className="text-[14px] font-bold leading-tight">May Plastic Card</div>
-          </button>
+        <div className="text-[18px] font-semibold text-on-surface-variant dark:text-slate-400 mb-8">
+          Naghintay ka ng {waitTimeText}
+        </div>
 
+        <div className="w-full mt-4">
           <button
             type="button"
-            onClick={() => {
-              setHasPlasticReview(false);
-              toast.success('Na-record na. Salamat!', { duration: 2000 });
-              setTimeout(() => navigate('/'), 2000);
-            }}
-            className="flex-1 h-[80px] rounded-[20px] bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-1.5"
+            onClick={() => navigate('/')}
+            className="w-full py-4 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-[15px]"
           >
-            <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path
-                d="M10 3.5H22.5L26.5 7.5V27.5C26.5 28.6 25.6 29.5 24.5 29.5H10C8.9 29.5 8 28.6 8 27.5V5.5C8 4.4 8.9 3.5 10 3.5Z"
-                fill="rgba(255,255,255,0.95)"
-                stroke="rgba(148,163,184,0.8)"
-                strokeWidth="1.5"
-              />
-              <path d="M12 12H22" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
-              <path d="M12 16H20" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
-              <path d="M12 20H18" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <div className="text-[14px] font-bold leading-tight">Paper Receipt lang</div>
+            Bumalik sa Home
           </button>
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -894,7 +886,7 @@ export function Queue() {
               </div>
 
               <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-3">
-                {DEMO_MODE && DEMO_BRANCHES.length > 0 && (
+                {isDemoMode && DEMO_BRANCHES.length > 0 && (
                   <div>
                     <div className={`text-[10px] font-black uppercase tracking-widest mb-2 ${isDark ? 'text-[#F4A261]' : 'text-amber-700'}`}>Demo Branches</div>
                     <div className="flex flex-col gap-2">
@@ -986,19 +978,21 @@ export function Queue() {
         </div>
       </header>
 
+      <div className="relative z-[1]">
       <AnimatePresence mode="wait">
         {timerState === 'setup' && renderSetup()}
         {timerState === 'active' && renderActive()}
         {timerState === 'success' && renderSuccess()}
       </AnimatePresence>
+      </div>
 
       <AnimatePresence>
         {isSubmitModalOpen && (
-          <div className="absolute inset-0 z-50 flex flex-col justify-end">
+          <div className="fixed inset-0 z-[1000] flex flex-col justify-end">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setSubmitModalOpen(false)}
+              // Backdrop does NOT close modal (prevent accidental dismissal)
             />
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
@@ -1074,14 +1068,27 @@ export function Queue() {
 
               {/* Scenario 12: Hold to submit */}
               <div className="flex-shrink-0 relative">
-                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{DEMO_MODE ? 'I-tap para isumite.' : strings.holdToSubmitLabel}</p>
+                  <p className="text-center text-xs font-bold text-gray-500 mb-2">{isDemoMode ? 'I-tap para isumite.' : strings.holdToSubmitLabel}</p>
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                    .submit-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+                  `}} />
                   <button
+                    id="submit-btn"
                     {...HANDLE_HOLD_TO_SUBMIT(handleFinalSubmit)}
                     disabled={(hasPlasticReview === null && !isPreQueue) || isSubmitting}
-                    className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none ${(hasPlasticReview === null && !isPreQueue) ? 'bg-gray-200 text-gray-400' : 'bg-[#E63946] text-white'}`}
+                    className={`w-full py-4 rounded-2xl font-black text-[15px] overflow-hidden select-none transition-all ${
+                      (hasPlasticReview === null && !isPreQueue)
+                        ? 'bg-gray-200 text-gray-400 opacity-40 cursor-not-allowed'
+                        : isSubmitting
+                          ? 'bg-[#E63946] text-white opacity-80 cursor-not-allowed'
+                          : 'bg-[#E63946] text-white'
+                    }`}
                     style={{ WebkitUserSelect: 'none', touchAction: 'none' }}
                   >
-                    <div className="relative z-10">{isSubmitting ? 'Nagsu-submit...' : (DEMO_MODE ? 'I-submit' : 'Pindutin nang matagal (2s)')}</div>
+                    <div className="relative z-10">
+                      {isSubmitting ? (<><span className="submit-spinner"></span>Nagsu-submit...</>) : (isDemoMode ? 'I-submit' : 'Pindutin nang matagal (2s)')}
+                    </div>
                     <div className="absolute top-0 left-0 h-full bg-white/30 transition-all duration-[2000ms] w-0 -z-0 ease-linear [parent.holding_&]:w-full" />
                   </button>
 

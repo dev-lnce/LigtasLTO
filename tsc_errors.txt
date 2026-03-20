@@ -1,0 +1,8 @@
+src/app/Root.tsx(71,26): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/app/Root.tsx(394,39): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/app/Root.tsx(405,39): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/app/Root.tsx(416,39): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/app/Root.tsx(427,39): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/app/Root.tsx(438,39): error TS2339: Property 'ligtasltoOnboarding' does not exist on type 'Window & typeof globalThis'.
+src/main.tsx(2,30): error TS7016: Could not find a declaration file for module 'react-dom/client'. 'C:/Users/devil/OneDrive/Desktop/LigtasLTO/node_modules/react-dom/client.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/react-dom` if it exists or add a new declaration (.d.ts) file containing `declare module 'react-dom/client';`

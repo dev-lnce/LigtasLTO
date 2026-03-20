@@ -1,6 +1,7 @@
 import React from 'react';
 import { Branch } from '../data/branches';
 import { useNavigate } from 'react-router';
+import { useTheme } from '../ThemeContext';
 
 type Props = {
   open: boolean;
@@ -37,7 +38,9 @@ const formatMins = (mins: number) => {
 
 export function BranchDetailsSheet({ open, branch, onClose }: Props) {
   const navigate = useNavigate();
-  // SECURITY: Gap 14 bottleneck analytics and Gap 8 integrity warning rely on server signals.
+  const { isDemoMode } = useTheme();
+  const [expandedReq, setExpandedReq] = React.useState<string | null>(null);
+  const [reportToast, setReportToast] = React.useState<{ tag: string; type: 'success' | 'error' } | null>(null);
   const [bottleneck, setBottleneck] = React.useState<null | {
     transitions: Array<{
       transition: string;
@@ -57,20 +60,6 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
     };
   }, [open]);
 
-  React.useEffect(() => {
-    if (!open || !branch?.id) return;
-    let alive = true;
-    fetch(`/api/branches/${branch.id}/milestones`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!alive) return;
-        if (data?.transitions) setBottleneck({ transitions: data.transitions });
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [open, branch?.id]);
 
   // Persona 2A: "Ligtas Ka Ba?" pre-entry checklist in the branch details sheet.
   const [ligtasState, setLigtasState] = React.useState<{
@@ -164,14 +153,14 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
-        <div className="flex items-center justify-between px-6 pt-3 pb-2">
+        <div className="flex items-center justify-between px-6 pt-3 pb-2 relative">
           <div className="w-full flex justify-center">
             <div className="w-12 h-1.5 bg-slate-400/30 dark:bg-slate-600 rounded-full" /> {/* FIX 5: Standard centered drag handle pill. */}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-3 p-2 rounded-full bg-surface-container-low dark:bg-slate-700/50 text-on-surface dark:text-slate-100"
+            className="absolute right-5 top-4 z-10 p-2 rounded-full bg-surface-container-low dark:bg-slate-700/50 text-on-surface dark:text-slate-100 transition-colors"
             aria-label="Isara"
           >
             <span className="material-symbols-outlined text-lg">close</span>
@@ -201,9 +190,13 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                 href={directionsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 px-4 py-2 rounded-full bg-primary text-white font-bold text-sm shadow-md shadow-primary/20 active:scale-95 transition-transform"
+                className="shrink-0 flex-none bg-transparent border border-outline-variant/50 text-primary dark:border-primary/50 dark:text-primary rounded-[20px] px-4 py-[6px] text-[12px] font-bold transition-colors whitespace-nowrap"
+                style={{
+                  border: '1px solid var(--color-border-primary, #B7102A)',
+                  color: 'var(--color-text-primary, #B7102A)',
+                }}
               >
-                Directions {/* FIX 5: Directions button opens Google Maps. */}
+                Directions
               </a>
             </div>
           </div>
@@ -223,30 +216,34 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, hasValidId: true }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.hasValidId === true
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-500' // green tint
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Oo"
+                        style={{
+                          background: ligtasState.hasValidId === true ? 'var(--color-background-success, #ecfdf5)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.hasValidId === true ? 'var(--color-text-success, #047857)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.hasValidId === true ? '1px solid var(--color-text-success, #047857)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          check_circle
-                        </span>
+                        Oo
                       </button>
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, hasValidId: false }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.hasValidId === false
-                            ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-red-50 text-red-700 border-red-500' // red tint
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Hindi"
+                        style={{
+                          background: ligtasState.hasValidId === false ? 'var(--color-background-danger, #fef2f2)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.hasValidId === false ? 'var(--color-text-danger, #b91c1c)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.hasValidId === false ? '1px solid var(--color-text-danger, #b91c1c)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          cancel
-                        </span>
+                        Hindi
                       </button>
                     </div>
                   </div>
@@ -259,30 +256,34 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, docsComplete: true }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.docsComplete === true
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Oo"
+                        style={{
+                          background: ligtasState.docsComplete === true ? 'var(--color-background-success, #ecfdf5)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.docsComplete === true ? 'var(--color-text-success, #047857)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.docsComplete === true ? '1px solid var(--color-text-success, #047857)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          check_circle
-                        </span>
+                        Oo
                       </button>
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, docsComplete: false }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.docsComplete === false
-                            ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-red-50 text-red-700 border-red-500'
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Hindi"
+                        style={{
+                          background: ligtasState.docsComplete === false ? 'var(--color-background-danger, #fef2f2)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.docsComplete === false ? 'var(--color-text-danger, #b91c1c)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.docsComplete === false ? '1px solid var(--color-text-danger, #b91c1c)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          cancel
-                        </span>
+                        Hindi
                       </button>
                     </div>
                   </div>
@@ -295,30 +296,34 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, feesOnly: true }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.feesOnly === true
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-500'
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Oo"
+                        style={{
+                          background: ligtasState.feesOnly === true ? 'var(--color-background-success, #ecfdf5)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.feesOnly === true ? 'var(--color-text-success, #047857)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.feesOnly === true ? '1px solid var(--color-text-success, #047857)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          check_circle
-                        </span>
+                        Oo
                       </button>
                       <button
                         type="button"
                         onClick={() => setLigtasState((p) => ({ ...p, feesOnly: false }))}
-                        className={`flex-1 h-12 rounded-[20px] flex items-center justify-center border ${
+                        className={`flex-1 rounded-[20px] px-5 py-2 text-[13px] font-medium transition-colors border ${
                           ligtasState.feesOnly === false
-                            ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
-                            : 'bg-surface-container-low dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30'
+                            ? 'bg-red-50 text-red-700 border-red-500'
+                            : 'bg-surface-secondary text-secondary border-tertiary'
                         }`}
-                        aria-label="Hindi"
+                        style={{
+                          background: ligtasState.feesOnly === false ? 'var(--color-background-danger, #fef2f2)' : 'var(--color-background-secondary, #f8fafc)',
+                          color: ligtasState.feesOnly === false ? 'var(--color-text-danger, #b91c1c)' : 'var(--color-text-secondary, #64748b)',
+                          border: ligtasState.feesOnly === false ? '1px solid var(--color-text-danger, #b91c1c)' : '0.5px solid var(--color-border-tertiary, #e2e8f0)',
+                        }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" } as any}>
-                          cancel
-                        </span>
+                        Hindi
                       </button>
                     </div>
                   </div>
@@ -380,7 +385,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
             </div>
           )}
 
-          {/* Section 3 — Heads Up Card */}
+          {/* Section 3 — Heads Up Card (community requirements accordion) */}
           <div className="mt-6 border rounded-2xl p-4 bg-amber-500/5 dark:bg-amber-950/60 border-amber-500/30 dark:border-amber-700">
             <div className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant dark:text-slate-400 mb-3">
               Mga hiningi sa ibang tao ngayon sa branch na ito
@@ -391,38 +396,89 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                   .sort((a, b) => (a.status === 'missing' ? -1 : 1) - (b.status === 'missing' ? -1 : 1))
                   .map((r) => {
                     const isOk = r.status === 'ok';
+                    const isExpanded = expandedReq === r.tag;
                     return (
-                      <div
-                        key={r.tag}
-                        className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span
-                            className={`material-symbols-outlined text-[28px] flex-shrink-0 ${
-                              isOk ? 'text-emerald-500 dark:text-emerald-400' : 'text-error dark:text-red-400'
-                            }`}
-                            style={{ fontVariationSettings: "'FILL' 1" } as any}
-                          >
-                            {isOk ? 'check_box' : 'check_box_outline_blank'}
-                          </span>
-
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm text-on-surface dark:text-slate-100 truncate">{r.labelFil}</div>
-                            <div className={`text-[11px] font-extrabold ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'} whitespace-nowrap`}>
-                              {isOk ? 'OK naman daw ngayon' : 'HINIHINGI NGAYON'}
+                      <div key={r.tag}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedReq(isExpanded ? null : r.tag)}
+                          className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30 text-left transition-colors hover:bg-surface-container-low dark:hover:bg-slate-700"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span
+                              className={`material-symbols-outlined text-[28px] flex-shrink-0 ${
+                                isOk ? 'text-emerald-500 dark:text-emerald-400' : 'text-error dark:text-red-400'
+                              }`}
+                              style={{ fontVariationSettings: "'FILL' 1" } as any}
+                            >
+                              {isOk ? 'check_box' : 'check_box_outline_blank'}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm text-on-surface dark:text-slate-100" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', lineHeight: '1.4' }}>{r.labelFil}</div>
+                              <div className={`text-[11px] font-extrabold ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'} whitespace-nowrap`}>
+                                {isOk ? 'OK naman daw ngayon' : 'HINIHINGI NGAYON'}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div
+                              className={`px-3 py-1 rounded-full text-[11px] font-extrabold border whitespace-nowrap ${
+                                isOk
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-500/20 dark:border-emerald-800/30'
+                                  : 'bg-red-500/10 text-error dark:bg-red-950/60 dark:text-red-300 border-red-500/20 dark:border-red-800/30'
+                              }`}
+                            >
+                              {r.count} nag-ulat
+                            </div>
+                            <span className={`material-symbols-outlined text-base text-on-surface-variant transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
+                          </div>
+                        </button>
 
-                        <div
-                          className={`px-3 py-1 rounded-full text-[11px] font-extrabold border whitespace-nowrap ${
-                            isOk
-                              ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-500/20 dark:border-emerald-800/30'
-                              : 'bg-red-500/10 text-error dark:bg-red-950/60 dark:text-red-300 border-red-500/20 dark:border-red-800/30'
-                          }`}
-                        >
-                          {r.count} nag-ulat
-                        </div>
+                        {/* Accordion expanded detail */}
+                        {isExpanded && (
+                          <div className="mt-1 px-3 py-3 rounded-xl bg-surface-container-low dark:bg-slate-700/50 border border-outline-variant/10 dark:border-slate-700/30">
+                            <div className="font-bold text-[14px] text-on-surface dark:text-slate-100 mb-1" style={{ whiteSpace: 'normal', lineHeight: '1.4' }}>{r.labelFil}</div>
+                            <div className={`text-[12px] font-extrabold mb-2 ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'}`}>
+                              {isOk ? 'OK NAMAN DAW NGAYON' : 'HINIHINGI NGAYON'}
+                            </div>
+                            <div className="text-[12px] text-on-surface-variant dark:text-slate-400 leading-relaxed mb-3">
+                              {r.count} tao ang nag-ulat nito ngayon.
+                              {!isOk && ' Ibig sabihin: huwag pumunta nang walang requirement na ito.'}
+                            </div>
+
+                            {reportToast?.tag === r.tag ? (
+                              <div className={`text-[12px] font-bold px-3 py-2 rounded-lg ${reportToast.type === 'success' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-error'}`}>
+                                {reportToast.type === 'success' ? 'Na-record ang iyong report. Salamat!' : 'Hindi na-record. Subukan ulit.'}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    if (isDemoMode) {
+                                      await new Promise(res => setTimeout(res, 500));
+                                    } else {
+                                      const res = await fetch(`/api/branches/${branch.id}/requirements`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ tag: r.tag }),
+                                      });
+                                      if (!res.ok) throw new Error('fail');
+                                    }
+                                    setReportToast({ tag: r.tag, type: 'success' });
+                                  } catch {
+                                    setReportToast({ tag: r.tag, type: 'error' });
+                                  }
+                                  setTimeout(() => setReportToast(null), 3000);
+                                }}
+                                className="text-[12px] font-bold text-primary hover:underline underline-offset-2"
+                              >
+                                I-report din ito ▾
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -474,62 +530,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
             </div>
           )}
 
-          {/* SECURITY: Gap 14 bottleneck analytics section. */}
-          <div className="mt-6 bg-surface-container-low dark:bg-slate-800 rounded-2xl p-4 border border-outline-variant/10 dark:border-slate-700/30">
-            <div className="font-extrabold text-[13px] text-on-surface dark:text-slate-100 mb-3">Bottleneck Analysis</div>
-            {bottleneck?.transitions?.length ? (
-              (() => {
-                const transitions = bottleneck.transitions;
-                const minutes = transitions.map((t) => t.rolling_4week_minutes_avg ?? t.week_minutes_avg ?? t.today_minutes_avg ?? 0);
-                const total = minutes.reduce((a, b) => a + b, 0) || 1;
-                const maxIdx = minutes.indexOf(Math.max(...minutes));
 
-                const labels: Record<string, string> = {
-                  evaluation_to_photo: 'Evaluation -> Photo',
-                  photo_to_cashier: 'Photo -> Cashier',
-                  cashier_to_release: 'Cashier -> Release',
-                };
-                const longestLabel = labels[transitions[maxIdx].transition] || transitions[maxIdx].transition;
-
-                return (
-                  <>
-                    <div className="h-3 bg-surface-container-lowest rounded-full overflow-hidden flex">
-                      {transitions.map((t, idx) => {
-                        const w = Math.max(0, (minutes[idx] / total) * 100);
-                        const isLongest = idx === maxIdx;
-                        return (
-                          <div
-                            key={t.transition}
-                            style={{ width: `${w}%` }}
-                            className={isLongest ? 'bg-amber-500' : 'bg-outline-variant/20'}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 text-[12px] font-bold text-on-surface-variant dark:text-slate-300">
-                      Pinakamahabang window:{' '}
-                      {(() => {
-                        if (typeof longestLabel === 'string' && longestLabel.includes('Evaluation')) {
-                          const parts = longestLabel.split('Evaluation');
-                          return (
-                            <>
-                              {parts[0]}
-                              {`Evaluation${parts[1] || ''}`}
-                            </>
-                          );
-                        }
-                        return longestLabel;
-                      })()}
-                    </div>
-                  </>
-                );
-              })()
-            ) : (
-              <div className="text-[12px] font-semibold text-on-surface-variant dark:text-slate-400">
-                Loading bottleneck data...
-              </div>
-            )}
-          </div>
 
           {/* Section 6 — Recent Reports Log */}
           <div className="mt-6">
@@ -575,7 +576,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
               className={`w-full py-3 rounded-full font-extrabold text-sm transition-transform active:scale-[0.99] ${
                 isPuno
                   ? 'bg-[#6B1F1F] text-white opacity-90 cursor-not-allowed'
-                  : 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'bg-primary text-white dark:bg-white dark:text-black shadow-md shadow-primary/20'
               }`}
             >
               {isPuno ? 'PUNO NA — Bumalik Bukas' : 'Pumila Dito'}

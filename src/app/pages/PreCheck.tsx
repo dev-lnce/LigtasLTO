@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
 import { BRANCHES } from '../data/branches';
+import { DEMO_BRANCHES } from '../../demoBranches.js';
 
 const CATEGORIES = ['License Renewal', 'MV Registration', 'MVIR', 'Student Permit'];
 
@@ -24,13 +25,14 @@ const getMockChecklist = (type: string, hasImage: boolean) => {
 };
 
 export function PreCheck() {
-  const { isDark } = useTheme();
+  const { isDark, isDemoMode } = useTheme();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeCategory, setActiveCategory] = useState('License Renewal');
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'results'>('idle');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [expandedCheck, setExpandedCheck] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      if (e.target.files && e.target.files[0]) {
@@ -161,11 +163,22 @@ export function PreCheck() {
             <h3 className={`font-bold text-[15px] mb-4 flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Resulta ng Pag-scan</h3>
             
             <div className="flex flex-col gap-2.5 mb-6">
-              {checklistData.map((item, index) => (
-                <motion.div 
-                   key={item.id} 
+              {checklistData.map((item, index) => {
+                const isExpanded = expandedCheck === item.id;
+                const explanations: Record<string, string> = {
+                  name: 'Ang pangalan at mga detalye ng tao ay nasuri at tumugma sa form.',
+                  medcert: 'Kailangan ng Medical Certificate na hindi pa nag-6 na buwan. Pumunta sa accredited clinic bago magpila sa LTO.',
+                  signature: 'Ang pirma ay nasuri at nasa tamang lugar sa form.',
+                  orcr: 'Kailangan ang lumang OR/CR para sa vehicle registration renewal.',
+                  insurance: 'Kailangan ang valid TPL Insurance certificate.',
+                };
+                return (
+                <div key={item.id}>
+                <motion.button
+                   type="button"
                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.15 }}
-                   className={`rounded-2xl p-3.5 border flex items-center justify-between ${isDark ? 'bg-slate-800 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}
+                   onClick={() => setExpandedCheck(isExpanded ? null : item.id)}
+                   className={`w-full rounded-2xl p-3.5 border flex items-center justify-between text-left ${isDark ? 'bg-slate-800 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm shadow-inner ${isDark ? 'bg-[#0A1626] border-white/5' : 'bg-gray-100 border-gray-200'}`}>
@@ -183,12 +196,20 @@ export function PreCheck() {
                     </div>
                     <span className={`font-semibold text-[13px] ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.field}</span>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-2">
                     {item.status === 'ok' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-green-900 text-green-300 border-[#10B981]/30' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span> OK</div>}
                     {item.status === 'missing' && <div className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 uppercase tracking-wider border ${isDark ? 'bg-red-950 text-red-300 border-[#E63946]/30' : 'bg-red-50 text-red-600 border-red-200'}`}><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" } as any}>error</span> Kulang!</div>}
+                    <span className={`material-symbols-outlined text-base text-on-surface-variant transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
                   </div>
-                </motion.div>
-              ))}
+                </motion.button>
+                {isExpanded && (
+                  <div className={`mt-1 px-4 py-3 rounded-xl text-[12px] leading-relaxed ${isDark ? 'bg-slate-700/50 text-slate-300' : 'bg-gray-50 text-gray-600'}`}>
+                    {explanations[item.id] || 'Walang karagdagang impormasyon.'}
+                  </div>
+                )}
+                </div>
+                );
+              })}
             </div>
 
             {/* Scenario 9: Branch Specific Warning Section */}
@@ -223,7 +244,7 @@ export function PreCheck() {
                             {isOk ? 'check_box' : 'check_box_outline_blank'}
                           </span>
                           <div className="min-w-0">
-                            <div className="font-bold text-sm text-on-surface dark:text-slate-100 truncate">{r.labelFil}</div>
+                            <div className="font-bold text-sm text-on-surface dark:text-slate-100" style={{ whiteSpace: 'normal', lineHeight: '1.4' }}>{r.labelFil}</div>
                             <div className={`text-[11px] font-extrabold ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'} whitespace-nowrap`}>
                               {isOk ? 'OK naman daw ngayon' : 'HINIHINGI NGAYON'}
                             </div>
@@ -258,8 +279,11 @@ export function PreCheck() {
                     <p className={`text-[11px] font-medium leading-relaxed px-4 ${isDark ? 'text-[#10B981]/80' : 'text-emerald-700'}`}>Kumpleto ang mga kinakailangang detalye base sa aming pagsusuri.</p>
                  </div>
                  <button 
-                   onClick={() => navigate('/queue')}
-                   className="w-full bg-[#10B981] hover:bg-[#059669] text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98]"
+                    onClick={() => {
+                      const branchId = isDemoMode && DEMO_BRANCHES.length > 0 ? DEMO_BRANCHES[0].id : undefined;
+                      navigate(branchId ? `/queue?branch=${encodeURIComponent(branchId)}` : '/queue');
+                    }}
+                    className="w-full bg-[#10B981] hover:bg-[#059669] text-white py-4 rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.3)] transition-all active:scale-[0.98]"
                  >
                    Pumunta sa Timer <span className="material-symbols-outlined text-xl">arrow_forward</span>
                  </button>
