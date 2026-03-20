@@ -11,6 +11,16 @@ export function Root() {
 
   const [city, setCity] = React.useState('Quezon City, NCR'); // FIX 2: Store detected city in Root state for the global header pill.
   const [isLocationModalOpen, setLocationModalOpen] = React.useState(false); // FIX 2: Make location picker accessible from header on all screens.
+  const [langMode, setLangMode] = React.useState<'eng' | 'fil'>(() => {
+    try {
+      return localStorage.getItem('ligtaslto_lang') === 'fil' ? 'fil' : 'eng';
+    } catch {
+      return 'eng';
+    }
+  });
+
+  const [isOnboardingOpen, setOnboardingOpen] = React.useState(false);
+  const [isOnboarded, setIsOnboarded] = React.useState(true);
 
   type NotificationType = 'anomaly' | 'warning' | 'update';
   type NotificationItem = { id: string; type: NotificationType; title: string; description: string; createdAt: number };
@@ -38,14 +48,14 @@ export function Root() {
 
   React.useEffect(() => {
     // FIX 5: Lock background scrolling when overlays are open.
-    const shouldLock = isNotifOpen || isLocationModalOpen;
+    const shouldLock = isNotifOpen || isLocationModalOpen || isOnboardingOpen;
     if (!shouldLock) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [isNotifOpen, isLocationModalOpen]);
+  }, [isNotifOpen, isLocationModalOpen, isOnboardingOpen]);
 
   React.useEffect(() => {
     // FIX 1/2: Allow any screen (e.g. Home hero buttons) to open the global drawer/modals without prop drilling.
@@ -61,6 +71,27 @@ export function Root() {
       window.removeEventListener('ligtaslto:open-location', openLocation as any);
     };
   }, []);
+
+  React.useEffect(() => {
+    // FIX 4A: Show onboarding overlay on first open.
+    try {
+      const onb = window.ligtasltoOnboarding;
+      const onboarded = Boolean(onb?.isOnboarded?.());
+      setIsOnboarded(onboarded);
+      setOnboardingOpen(!onboarded);
+    } catch {
+      setIsOnboarded(true);
+      setOnboardingOpen(false);
+    }
+
+    const onComplete = () => {
+      setIsOnboarded(true);
+      setOnboardingOpen(false);
+      navigate('/');
+    };
+    window.addEventListener('ligtaslto:onboarding-complete', onComplete as any);
+    return () => window.removeEventListener('ligtaslto:onboarding-complete', onComplete as any);
+  }, [navigate]);
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Tahanan' },
@@ -102,6 +133,16 @@ export function Root() {
                 <span className="material-symbols-outlined text-[14px]">location_on</span>
                 <span className="truncate max-w-[200px]">{city}</span>
               </button>
+
+              {isOnboarded && (
+                <button
+                  type="button"
+                  onClick={() => setOnboardingOpen(true)}
+                  className="text-[11px] font-bold text-primary underline underline-offset-2 mt-2"
+                >
+                  Palitan
+                </button>
+              )}
             </div>
           </div>
 
@@ -117,6 +158,27 @@ export function Root() {
               <span className="material-symbols-outlined">notifications</span>
               {hasUnreadNotifs && <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-error" />} {/* FIX 1: Unread dot hides after open and returns only on new notif. */}
             </button>
+
+            {/* FIX 5A: Language toggle (FIL/ENG) */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = langMode === 'fil' ? 'eng' : 'fil';
+                setLangMode(next);
+                try {
+                  window.ligtasltoStringsFil?.setLangMode?.(next);
+                } catch {}
+              }}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-colors active:scale-95 ${
+                langMode === 'fil'
+                  ? 'bg-blue-900 text-blue-300 border-blue-500/50'
+                  : 'bg-surface-container-lowest dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-outline-variant/10'
+              }`}
+              aria-label="Language mode"
+            >
+              {langMode === 'fil' ? 'FIL' : 'ENG'}
+            </button>
+
             <button
               aria-label="Toggle theme"
               onClick={toggleTheme}
@@ -256,6 +318,76 @@ export function Root() {
           );
         })}
       </nav>
+
+      {/* FIX 4A: Baguhan Ka Ba? onboarding overlay (transaction-first) */}
+      {isOnboardingOpen && (
+        <div className="fixed inset-0 z-[9999] bg-white dark:bg-slate-900 min-h-screen flex items-center justify-center px-6">
+          <div className="w-full">
+            <div className="text-center">
+              <div className="text-[22px] font-bold text-on-surface dark:text-slate-100 mb-6">
+                Ano ang gagawin mo sa LTO ngayon?
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Student Permit')}
+              >
+                <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                  menu_book
+                </span>
+                <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">Student Permit</div>
+              </button>
+
+              <button
+                type="button"
+                className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('License Renewal')}
+              >
+                <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                  credit_card
+                </span>
+                <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">License Renewal</div>
+              </button>
+
+              <button
+                type="button"
+                className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Vehicle Registration')}
+              >
+                <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                  directions_car
+                </span>
+                <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">Vehicle Registration</div>
+              </button>
+
+              <button
+                type="button"
+                className="h-[140px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.("Driver's License")}
+              >
+                <span className="material-symbols-outlined text-[48px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                  badge
+                </span>
+                <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">Driver&apos;s License</div>
+              </button>
+
+              <button
+                type="button"
+                className="col-span-2 h-[72px] rounded-[20px] border border-outline-variant/10 dark:border-slate-700 bg-surface-container-lowest dark:bg-slate-800 flex items-center justify-center gap-3 cursor-pointer"
+                onClick={() => window.ligtasltoOnboarding?.setOnboardingSelection?.('Hindi ko alam')}
+              >
+                <span className="material-symbols-outlined text-[40px] text-on-surface-variant dark:text-slate-200" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                  help_outline
+                </span>
+                <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">Hindi ko alam</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate, useLocation } from 'react-router';
 import confetti from 'canvas-confetti';
+import { toast } from 'sonner';
 import { CHECK_GEOFENCE, IS_DURING_LUNCH_BREAK, HANDLE_HOLD_TO_SUBMIT } from '../../utils/scenarioGuards';
 import { strings } from '../../locales/strings.fil';
 import { DEMO_MODE } from '../../config.js';
 import { demoBranches } from '../../demoBranches.js';
+import { BRANCHES } from '../data/branches';
 
 // DUMMY CONSTANTS
 const DEVICE_HASH = 'device-12345'; // in reality: generated / imported
@@ -33,22 +35,25 @@ type BranchOption = {
   isDemo?: boolean;
 };
 
-const REAL_BRANCHES: BranchOption[] = [
-  {
-    id: 'lto-diliman',
-    name: 'LTO Diliman District',
-    address: 'East Avenue, Quezon City',
-    lat: 14.6436,
-    lng: 121.045,
+// Use the shared mock branch list so URL preselection works for all branches.
+const REAL_BRANCHES: BranchOption[] = BRANCHES.map((b: any) => ({
+  id: b.id,
+  name: b.name,
+  address: b.address,
+  lat: b.lat,
+  lng: b.lng,
+  stats: {
+    hasPlasticCards: b.hasPlasticCards,
+    avgWaitWalkIn: typeof b.walkinAvgMinutes === 'number' ? `${b.walkinAvgMinutes}m` : undefined,
+    avgWaitAppointment: typeof b.appointmentAvgMinutes === 'number' ? `${b.appointmentAvgMinutes}m` : undefined,
+    grade: b.grade,
+    isPuno: b.is_puno,
+    highDemand: b.high_demand_warning,
+    prequeueMinutes: b.prequeueMinutesBeforeOpen,
+    reportsToday: b.reportsToday,
   },
-  {
-    id: 'lto-novaliches',
-    name: 'LTO Novaliches',
-    address: 'Robinsons Novaliches, Quezon City',
-    lat: 14.7216,
-    lng: 121.0452,
-  },
-];
+  isDemo: false,
+}));
 
 const DEMO_BRANCHES: BranchOption[] = (demoBranches || []).map((b: any) => ({
   ...b,
@@ -67,8 +72,30 @@ export function Queue() {
   const [seconds, setSeconds] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   
-  const [transactionType, setTransactionType] = useState('License Renewal');
+  const [transactionType, setTransactionType] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ligtaslto_transaction');
+      switch (saved) {
+        case 'License Renewal':
+          return 'License Renewal';
+        case 'Vehicle Registration':
+          return 'MV Registration';
+        case "Driver's License":
+          return 'New License';
+        case 'Student Permit':
+          return 'Other';
+        default:
+          return 'License Renewal';
+      }
+    } catch {
+      return 'License Renewal';
+    }
+  });
   const [queueNumber, setQueueNumber] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [queueOcrState, setQueueOcrState] = useState<'idle' | 'loading' | 'success' | 'failed'>('idle');
+  const [queueOcrError, setQueueOcrError] = useState<string>('');
+  const [wakeLockActive, setWakeLockActive] = useState(false);
   
   // Scenarios State
   const [queueType, setQueueType] = useState<'walk-in' | 'appointment' | null>(null); // Scenario 10
@@ -78,6 +105,9 @@ export function Queue() {
   const [isLunchBreak, setIsLunchBreak] = useState(false); // Scenario 7
   const [recoverySession, setRecoverySession] = useState<any>(null); // Scenario 4
   const [isPunoConfirmed, setIsPunoConfirmed] = useState(false); // Scenario 6
+
+  // SECURITY: Persist GPS coordinates so the server can validate submission geofencing (Gap 4).
+  const [latestGps, setLatestGps] = useState<{ lat: number; lng: number } | null>(null);
 
   // Submit Form States
   const [hasPlasticReview, setHasPlasticReview] = useState<boolean | null>(null);
@@ -90,10 +120,34 @@ export function Queue() {
 
   // Scenario 2: Milestones
   const [milestones, setMilestones] = useState([
-    { id: 'eval', label: 'Evaluation Done', timestamp: null as Date | null },
-    { id: 'photo', label: 'Photo/Biometrics Done', timestamp: null as Date | null },
-    { id: 'cashier', label: 'Paid Cashier', timestamp: null as Date | null },
-    { id: 'release', label: 'Received ID/Papers', timestamp: null as Date | null },
+    {
+      id: 'eval',
+      label: 'Tinanggap na ang papel ko sa unang window,',
+      icon: 'description',
+      contextNote: 'Hintayin ang iyong pangalan o numero na matawag sa evaluation area.\nIhanda ang inyong form o papel para ipakita sa unang bintana.',
+      timestamp: null as Date | null,
+    },
+    {
+      id: 'photo',
+      label: 'Kinunan na ako ng litrato at fingerprint,',
+      icon: 'photo_camera',
+      contextNote: 'Siguraduhing malinaw ang litrato at fingerprint.\nKung may hinihinging retake, sundin agad ang instruksyon.',
+      timestamp: null as Date | null,
+    },
+    {
+      id: 'cashier',
+      label: 'Nabayaran na ko sa cashier window,',
+      icon: 'payments',
+      contextNote: 'I-check na na-proseso na ang bayad mo sa cashier window.\nHintayin ang resibo o kumpirmasyon bago mag-move.',
+      timestamp: null as Date | null,
+    },
+    {
+      id: 'release',
+      label: 'Tapos Na',
+      icon: 'badge',
+      contextNote: 'Hintayin ang iyong pangalan o numero sa release window.\nKapag tumawag na, kunin ang ID o resibo at i-double check.',
+      timestamp: null as Date | null,
+    },
   ]);
 
   // Handle Mount / Scenario 4 (Recovery) & Background Sync Listener
@@ -144,6 +198,16 @@ export function Queue() {
     };
   }, [location.search]);
 
+  // Wake Lock: keep timer screen from auto-dimming for one-handed use.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setWakeLockActive(Boolean(detail?.active));
+    };
+    window.addEventListener('ligtaslto:wakeLock-change', onChange as any);
+    return () => window.removeEventListener('ligtaslto:wakeLock-change', onChange as any);
+  }, []);
+
   // Scenario 1: Offline submission syncer
   const flushOfflineQueue = async () => {
     const pendingJson = localStorage.getItem('ligtaslto_pending_submissions');
@@ -174,9 +238,13 @@ export function Queue() {
   };
 
   // Timer & Blackout Effect
+  const isFinalMilestoneDone = Boolean(milestones[3]?.timestamp);
+  const currentActiveMilestoneIdxRaw = milestones.findIndex((m) => !m.timestamp);
+  const activeMilestoneIdx = currentActiveMilestoneIdxRaw === -1 ? milestones.length - 1 : currentActiveMilestoneIdxRaw;
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (timerState === 'active') {
+    if (timerState === 'active' && !isFinalMilestoneDone) {
       interval = setInterval(() => {
         // Scenario 7: Check lunch break
         const blackout = IS_DURING_LUNCH_BREAK(BRANCH_OPERATING_HOURS);
@@ -189,7 +257,7 @@ export function Queue() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timerState]);
+  }, [timerState, isFinalMilestoneDone]);
 
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
@@ -210,12 +278,21 @@ export function Queue() {
   const handleStartTimer = async (isPre = false) => {
     setIsPreQueue(isPre);
 
+    // Wake Lock API (Persona 1C): keep screen on for the official timer.
+    if (!isPre) {
+      try {
+        (window as any)?.ligtasltoWakeLock?.requestWakeLock?.();
+      } catch {}
+    }
+
     // Scenario 3: Geofence Check
     const geo = await CHECK_GEOFENCE(selectedBranch.lat, selectedBranch.lng);
     if (!geo.allowed) {
       setGeofenceError(geo.error || strings.geofenceError);
       return;
     }
+    // SECURITY: capture starting GPS fix for later submission-time validation.
+    if (geo.coords) setLatestGps(geo.coords);
     setGeofenceError('');
 
     const start = new Date();
@@ -240,25 +317,89 @@ export function Queue() {
     }
   };
 
+  const startQueueNumberOcr = async (file: File) => {
+    setQueueOcrState('loading');
+    setQueueOcrError('');
+
+    const readBase64 = () =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = String(reader.result || '');
+          // data:[mime];base64,XXXX -> XXXX
+          const base64 = result.includes('base64,') ? result.split('base64,')[1] : result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+    try {
+      const image_base64 = await readBase64();
+      // TODO: Backend — add queue_number OCR mode to /api/ocr-check endpoint.
+      const res = await fetch('/api/ocr-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64, mode: 'queue_number' }),
+      });
+      if (!res.ok) throw new Error('OCR_FAILED');
+      const data = await res.json();
+      const detected = data?.queue_number || data?.queueNumber || data?.queue || '';
+      if (!detected || typeof detected !== 'string') throw new Error('OCR_EMPTY');
+
+      setQueueNumber(detected.toUpperCase().trim());
+      setQueueOcrState('success');
+    } catch {
+      setQueueOcrState('failed');
+      setQueueOcrError('Hindi namin nabasa ang queue number sa litrato.');
+    }
+  };
+
+  const onCaptureClicked = () => {
+    setQueueOcrState('idle');
+    setQueueOcrError('');
+    fileInputRef.current?.click();
+  };
+
+  const onOcrFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    startQueueNumberOcr(file);
+  };
+
   const openSubmitModal = () => setSubmitModalOpen(true);
 
   // Milestone Click
   const toggleMilestone = (idx: number) => {
-    const updated = [...milestones];
-    if (updated[idx].timestamp) {
-      updated[idx].timestamp = null;
-    } else {
-      updated[idx].timestamp = new Date();
-      if (idx === 3) { // Scenario 2: Received ID stops timer
-        openSubmitModal();
-      }
+    // Persona 1A: only allow tapping the CURRENT active milestone.
+    const currentActiveIdx = milestones.findIndex((m) => !m.timestamp);
+    const activeIdx = currentActiveIdx === -1 ? milestones.length - 1 : currentActiveIdx;
+    if (idx !== activeIdx) return;
+
+    setMilestones((prev) => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], timestamp: new Date() };
+      return updated;
+    });
+
+    if (idx === 3) {
+      // Persona 1A: last milestone stops timer + triggers submit flow.
+      try {
+        (window as any)?.ligtasltoWakeLock?.releaseWakeLock?.();
+      } catch {}
+      openSubmitModal();
     }
-    setMilestones(updated);
   };
 
   // Scenario 6: Submit PUNO
   const reportPuno = async () => {
     try {
+      // Demo Mode: confirm locally so the UI flow completes even if backend isn't running.
+      if (DEMO_MODE) {
+        setIsPunoConfirmed(true);
+        return;
+      }
+
       await fetch(`/api/branches/${selectedBranch.id}/puno`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,6 +414,22 @@ export function Queue() {
     setIsSubmitting(true);
     const end = new Date();
 
+    // SECURITY: Fetch GPS at submission time to prevent submit-time location spoofing (Gap 4).
+    let gps = latestGps;
+    try {
+      if (navigator.geolocation) {
+        gps = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              resolve({ lat: position.coords.latitude, lng: position.coords.longitude });
+            },
+            () => resolve(latestGps),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        });
+      }
+    } catch {}
+
     const payload = {
       branch_id: selectedBranch.id,
       transaction_type: transactionType,
@@ -284,6 +441,8 @@ export function Queue() {
       started_at: sessionStartTime?.toISOString(),
       device_hash: DEVICE_HASH,
       queue_type: queueType,
+      gps_lat: gps?.lat,
+      gps_lng: gps?.lng,
       milestones: milestones.map(m => m.timestamp ? { milestone: m.label, completed_at: m.timestamp.toISOString() } : null).filter(Boolean),
       is_companion_submission: isCompanion
     };
@@ -297,6 +456,16 @@ export function Queue() {
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('API Error');
+
+      // SECURITY: Gap 10 - update device tier signal locally after a confirmed server submission.
+      try {
+        const accessKey = 'ligtaslto_access_tier';
+        const prevRaw = localStorage.getItem(accessKey);
+        const prev = prevRaw ? JSON.parse(prevRaw) : {};
+        const submissionCount = (prev.submissionCount || 0) + 1;
+        const tier = submissionCount === 0 ? 1 : submissionCount <= 4 ? 2 : 3;
+        localStorage.setItem(accessKey, JSON.stringify({ ...prev, tier, submissionCount, lastFetchedAt: prev.lastFetchedAt || null }));
+      } catch {}
     } catch (e) {
       // SCENARIO 1: Offline Logic
       const pendingJson = localStorage.getItem('ligtaslto_pending_submissions') || '[]';
@@ -354,20 +523,85 @@ export function Queue() {
       <div>
         <label className={`text-[11px] font-bold uppercase tracking-widest mb-3 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Type (Required)</label>
         <div className="flex gap-3">
-           <button onClick={() => setQueueType('walk-in')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeWalkin}</button>
-           <button onClick={() => setQueueType('appointment')} className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}>{strings.queueTypeAppointment}</button>
+           <button
+             onClick={() => setQueueType('walk-in')}
+             className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'walk-in' ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
+           >
+             <span className="inline-flex items-center justify-center gap-2">
+               {strings.queueTypeWalkin}
+             </span>
+           </button>
+           <button
+             onClick={() => setQueueType('appointment')}
+             className={`flex-1 py-3 rounded-xl border font-bold text-[13px] ${queueType === 'appointment' ? 'bg-[#10B981] text-white border-[#10B981]' : (isDark ? 'bg-slate-700 text-slate-300 border-white/10' : 'border-gray-200 text-gray-900')}`}
+           >
+             <span className="inline-flex items-center justify-center gap-2">
+               {strings.queueTypeAppointment}
+             </span>
+           </button>
         </div>
       </div>
 
       <div>
-        <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Queue Number (Optional)</label>
-        <input 
-           type="text" 
-           value={queueNumber}
-           onChange={e => setQueueNumber(e.target.value)}
-           placeholder="Halimbawa: A-142" 
-           className="w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm bg-surface-container-lowest dark:bg-slate-700 border-outline-variant/10 dark:border-slate-700/30 text-on-surface dark:text-slate-100 placeholder:text-on-surface-variant/60 dark:placeholder:text-slate-500" /* FIX 4: Use dark variants instead of custom dark-only colors. */
+        <label className={`text-[11px] font-bold uppercase tracking-widest mb-2 block ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>
+          Queue Slip (Optional)
+        </label>
+
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={onOcrFileSelected}
         />
+
+        <button
+          type="button"
+          onClick={onCaptureClicked}
+          className="w-full min-h-[56px] rounded-2xl border-2 border-outline-variant/30 bg-transparent text-on-surface dark:text-slate-100 font-black text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+        >
+          <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>photo_camera</span>
+          I-litrato ang iyong slip
+        </button>
+
+        {queueOcrState === 'loading' && (
+          <div className="mt-2 text-[11px] font-bold text-on-surface-variant dark:text-slate-400">
+            Sinusuri ang litrato...
+          </div>
+        )}
+
+        {queueOcrState === 'success' && queueNumber && (
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="flex-1 px-4 py-2 rounded-full bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30 text-center font-extrabold text-[14px] text-on-surface dark:text-slate-100">
+              {queueNumber}
+            </div>
+            <button
+              type="button"
+              onClick={onCaptureClicked}
+              className="shrink-0 text-[12px] font-black text-primary dark:text-blue-300 underline underline-offset-2"
+            >
+              Mali ba?
+            </button>
+          </div>
+        )}
+
+        {queueOcrState === 'failed' && (
+          <div className="mt-3">
+            <input
+              type="text"
+              value={queueNumber}
+              onChange={(e) => setQueueNumber(e.target.value)}
+              placeholder="Hal: B-078"
+              className="w-full px-4 py-3.5 rounded-2xl border font-bold text-[15px] outline-none transition-colors shadow-sm bg-surface-container-lowest dark:bg-slate-700 border-outline-variant/10 dark:border-slate-700/30 text-on-surface dark:text-slate-100 placeholder:text-on-surface-variant/60 dark:placeholder:text-slate-500"
+            />
+            {queueOcrError && (
+              <div className="mt-2 text-[11px] font-bold text-error dark:text-rose-300">
+                {queueOcrError}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div>
@@ -379,7 +613,9 @@ export function Queue() {
               onClick={() => setTransactionType(type)}
               className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all border ${transactionType === type ? 'bg-[#E63946] text-white border-[#E63946]' : (isDark ? 'bg-slate-700 text-slate-200 border-white/10' : 'bg-white text-gray-600')}`}
             >
-              {type}
+              <span className="inline-flex items-center gap-2">
+                {type}
+              </span>
             </button>
           ))}
         </div>
@@ -440,9 +676,19 @@ export function Queue() {
         <motion.div className={`rounded-[28px] p-6 border shadow-xl relative overflow-hidden flex flex-col items-center text-center ${isLunchBreak ? 'border-[#F59E0B] animate-pulse' : (isDark ? 'bg-slate-800 border-white/10' : 'bg-white border-gray-200')}`}>
           <div className="w-full flex justify-between items-center mb-6">
             <h2 className={`font-bold text-[15px] tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedBranch.name}</h2>
-            <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
-              <span className={isDark ? 'text-blue-200/70' : 'text-gray-600'}>{transactionType}</span>
-            </div>
+                <div className="flex items-center gap-2">
+                  <div className="bg-transparent border px-3 py-1.5 rounded-full text-xs font-bold shadow-sm backdrop-blur-md">
+                    <span className={isDark ? 'text-blue-200/70' : 'text-gray-600'}>{transactionType}</span>
+                  </div>
+                  {wakeLockActive && (
+                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400 text-amber-700 dark:text-amber-300 text-[10px] font-bold select-none">
+                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                        screen_lock_portrait
+                      </span>
+                      Screen aktibo
+                    </div>
+                  )}
+                </div>
           </div>
 
           <div className={`mb-2 w-full flex justify-center items-center font-mono text-[3.5rem] leading-none font-black tracking-tighter ${getTimerColor()}`}>
@@ -454,25 +700,72 @@ export function Queue() {
 
       {/* Scenario 2: Milestones Checklist */}
       {!isPreQueue && (
-         <div className="px-6 mb-8">
-            <h3 className={`font-bold text-[13px] mb-3 uppercase tracking-wider ${isDark ? 'text-blue-200/50' : 'text-gray-500'}`}>Mga Hakbang</h3>
-            <div className="flex flex-col gap-2">
-               {milestones.map((m, idx) => (
-                  <button 
-                     key={m.id} 
-                     onClick={() => toggleMilestone(idx)}
-                     className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${m.timestamp ? 'bg-teal-900/40 border-[#10B981] text-[#10B981]' : (isDark ? 'bg-slate-700/50 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900')}`}
+        <div className="mb-8">
+          <style>{`
+            @keyframes pulse-ring {
+              0%,100%{box-shadow:0 0 0 0 rgba(183,16,42,0.3)}
+              50%{box-shadow:0 0 0 8px rgba(183,16,42,0)}
+            }
+          `}</style>
+          <div className="flex flex-col gap-[10px] p-4">
+            {milestones.map((m, idx) => {
+              const isCompleted = Boolean(m.timestamp);
+              const isActive = idx === activeMilestoneIdx && !isCompleted;
+              const isPending = !isCompleted && !isActive && idx > activeMilestoneIdx;
+              const isDisabled = !isActive;
+
+              const buttonClass = isActive
+                ? 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-[#B7102A] text-white'
+                : isCompleted
+                  ? 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400'
+                  : 'w-full h-[72px] rounded-[16px] flex items-center gap-4 px-5 bg-surface-container-lowest dark:bg-slate-800 text-tertiary opacity-40 pointer-events-none';
+
+              const icon = isCompleted ? 'check_circle' : (m as any).icon;
+              const iconClass = isActive
+                ? 'text-white'
+                : isCompleted
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-tertiary';
+
+              const noteColor = isActive
+                ? 'text-white/80'
+                : 'text-on-surface-variant dark:text-slate-400';
+
+              const contextNote = (m as any).contextNote as string | undefined;
+              const noteLines = contextNote ? contextNote.split('\n') : [];
+
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggleMilestone(idx)}
+                  disabled={isDisabled}
+                  className={buttonClass}
+                  style={isActive ? ({ animation: 'pulse-ring 2s ease-in-out infinite' } as any) : undefined}
+                >
+                  <span
+                    className={`material-symbols-outlined text-[28px] flex-shrink-0 ${iconClass}`}
+                    style={{ fontVariationSettings: "'FILL' 1" } as any}
                   >
-                     <span className="font-extrabold text-[14px]">{m.label}</span>
-                     {m.timestamp ? (
-                       <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" } as any}>check_circle</span>
-                     ) : (
-                       <div className="w-5 h-5 rounded-full border-2 border-gray-400/30" />
-                     )}
-                  </button>
-               ))}
-            </div>
-         </div>
+                    {icon}
+                  </span>
+
+                  <div className="flex flex-col min-w-0 items-start">
+                    <div className="text-[16px] font-bold leading-tight">{m.label}</div>
+                    <div className={`text-[11px] font-normal italic leading-snug mt-[2px] opacity-80 ${noteColor}`}>
+                      {noteLines.map((ln, i) => (
+                        <React.Fragment key={i}>
+                          {ln}
+                          {i < noteLines.length - 1 && <br />}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Scenario 6: PUNO Button */}
@@ -485,7 +778,10 @@ export function Queue() {
       )}
       {isPunoConfirmed && (
         <div className="mx-6 mb-8 border border-red-500 bg-red-500 text-white p-3 rounded-lg text-[13px] font-bold text-center">
-           Na-report na rito bilang PUNO. Salamat!
+           <span className="inline-flex items-center justify-center gap-2">
+             Na-report na rito bilang PUNO.
+           </span>{' '}
+           Salamat!
         </div>
       )}
 
@@ -502,39 +798,72 @@ export function Queue() {
   );
 
   const renderSuccess = () => (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="px-6 flex flex-col items-center justify-center text-center mt-10 pb-20">
-      <div className="w-24 h-24 bg-tertiary rounded-full flex items-center justify-center text-white mb-6 shadow-[0_0_40px_rgba(0,104,96,0.35)]">
-        <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" } as any}>check</span>
-      </div>
-      <h2 className={`font-black tracking-tight text-2xl mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Maraming Salamat!</h2>
-      <p className={`font-medium text-sm px-4 mb-4 ${isDark ? 'text-blue-200/70' : 'text-gray-500'}`}>Ang iyong ulat ay malaking tulong sa libu-libong motorista.</p>
-      
-      {offlineSyncMessage && <p className="text-[#F59E0B] font-bold text-xs mb-6">{offlineSyncMessage}</p>}
+    <div className="fixed inset-0 z-[60] bg-white dark:bg-slate-900 text-center flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="w-[80px] h-[80px] mb-6 flex items-center justify-center">
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="38" fill="#10B981" fillOpacity="0.15" />
+            <circle cx="40" cy="40" r="38" stroke="#10B981" strokeWidth="4" />
+            <path d="M27 41.5L36.2 50.7L53.5 33.4" stroke="#10B981" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
 
-      <div className={`w-full p-6 rounded-[24px] border border-dashed mb-8 text-left ${isDark ? 'bg-[#162A45]/50 border-white/20' : 'bg-gray-50 border-gray-300'}`}>
-         <span className={`block text-[10px] uppercase font-bold tracking-widest mb-1 ${isDark ? 'text-blue-200/50' : 'text-gray-400'}`}>Total Wait Time</span>
-         <span className={`block font-mono font-black text-3xl mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatTime(seconds)}</span>
-      </div>
-
-      {/* Scenario 9: Requirements Report */}
-      <div className={`w-full p-5 rounded-[20px] border mb-8 text-left ${isDark ? 'bg-[#162A45] border-[#F59E0B]/30' : 'bg-orange-50 border-orange-200'}`}>
-         <h4 className={`font-bold text-[14px] mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{strings.requirementsTitle}</h4>
-         <div className="flex flex-wrap gap-2">
-            {['Updated MedCert', 'Short bond only', 'Extra photocopy'].map(req => (
-               <button key={req} onClick={() => {
-                  fetch(`/api/branches/${selectedBranch.id}/requirements`, {
-                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ requirement_tag: req, device_hash: DEVICE_HASH })
-                  });
-               }} className="px-3 py-1.5 bg-orange-500/10 text-orange-600 border border-orange-200 rounded-full text-xs font-extrabold">{req}</button>
-            ))}
-         </div>
+        <div className="text-[20px] font-bold leading-snug text-slate-900 dark:text-slate-100">
+          Tapos ka na! Salamat sa tulong mo sa inyong kapwa Pilipino.
+        </div>
       </div>
 
-      <button onClick={() => navigate('/')} className={`w-full py-4 rounded-2xl font-black text-[15px] border ${isDark ? 'bg-[#162A45] text-white hover:bg-[#162A45]/80' : 'bg-white text-gray-900 hover:bg-gray-50'}`}>
-        Bumalik sa Home
-      </button>
-    </motion.div>
+      <div className="w-full pb-8 px-6">
+        <div className="text-[18px] font-semibold text-slate-900 dark:text-slate-100 mb-4">
+          <span className="inline-flex items-center gap-2">
+            Nakatanggap ka ba ng PLASTIC CARD?
+          </span>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setHasPlasticReview(true);
+              toast.success('Na-record na. Salamat!', { duration: 2000 });
+              setTimeout(() => navigate('/'), 2000);
+            }}
+            className="flex-1 h-[80px] rounded-[20px] bg-emerald-500 dark:bg-emerald-700 text-white border border-emerald-500/30 flex flex-col items-center justify-center gap-1.5"
+          >
+            <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="2.5" y="3" width="35" height="22" rx="4" fill="rgba(255,255,255,0.95)" />
+              <rect x="2.5" y="3" width="35" height="6" rx="4" fill="rgba(16,185,129,0.25)" />
+              <rect x="8" y="14" width="17" height="2.5" rx="1.25" fill="#10B981" fillOpacity="0.9" />
+              <rect x="8" y="18" width="24" height="2.5" rx="1.25" fill="#10B981" fillOpacity="0.9" />
+            </svg>
+            <div className="text-[14px] font-bold leading-tight">May Plastic Card</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setHasPlasticReview(false);
+              toast.success('Na-record na. Salamat!', { duration: 2000 });
+              setTimeout(() => navigate('/'), 2000);
+            }}
+            className="flex-1 h-[80px] rounded-[20px] bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-1.5"
+          >
+            <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path
+                d="M10 3.5H22.5L26.5 7.5V27.5C26.5 28.6 25.6 29.5 24.5 29.5H10C8.9 29.5 8 28.6 8 27.5V5.5C8 4.4 8.9 3.5 10 3.5Z"
+                fill="rgba(255,255,255,0.95)"
+                stroke="rgba(148,163,184,0.8)"
+                strokeWidth="1.5"
+              />
+              <path d="M12 12H22" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+              <path d="M12 16H20" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+              <path d="M12 20H18" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <div className="text-[14px] font-bold leading-tight">Paper Receipt lang</div>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   return (
@@ -638,7 +967,15 @@ export function Queue() {
       
       <header className="px-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className={`p-2.5 rounded-full border ${isDark ? 'bg-slate-800 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900'}`}>
+          <button
+            onClick={() => {
+              try {
+                (window as any)?.ligtasltoWakeLock?.releaseWakeLock?.();
+              } catch {}
+              navigate(-1);
+            }}
+            className={`p-2.5 rounded-full border ${isDark ? 'bg-slate-800 border-white/5 text-slate-100' : 'bg-white border-gray-200 text-gray-900'}`}
+          >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div>
@@ -688,11 +1025,48 @@ export function Queue() {
                 {!isPreQueue && (
                   <div>
                     <label className="text-[11px] font-bold uppercase tracking-widest mb-3 block flex items-center gap-1.5 text-on-surface-variant">
-                      <span className="material-symbols-outlined text-sm">credit_card</span> May nakuha ka bang Plastic Card?
+                      <span className="material-symbols-outlined text-sm">credit_card</span>
+                      <span className="inline-flex items-center gap-1">
+                        May nakuha ka bang Plastic Card?
+                      </span>
                     </label>
                     <div className="flex gap-3">
-                      <button onClick={() => setHasPlasticReview(true)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === true ? 'bg-[#10B981] border-[#10B981] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Oo, May Plastic</span></button>
-                      <button onClick={() => setHasPlasticReview(false)} className={`flex-1 border p-3 rounded-[16px] ${hasPlasticReview === false ? 'bg-[#E63946] border-[#E63946] text-white' : (isDark ? 'bg-[#162A45] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900')}`}><span className="font-extrabold text-[13px]">Wala, Paper lang</span></button>
+                      <button
+                        type="button"
+                        onClick={() => setHasPlasticReview(true)}
+                        className={`flex-1 h-[80px] rounded-[20px] bg-emerald-500 dark:bg-emerald-700 text-white border border-emerald-500/30 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
+                          hasPlasticReview === true ? 'ring-2 ring-white/30' : ''
+                        }`}
+                      >
+                        <svg width="44" height="28" viewBox="0 0 44 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <rect x="2" y="3" width="40" height="22" rx="5" fill="rgba(255,255,255,0.95)" />
+                          <rect x="2" y="3" width="40" height="7" rx="5" fill="rgba(16,185,129,0.25)" />
+                          <rect x="10" y="14" width="18" height="3" rx="1.5" fill="#10B981" fillOpacity="0.9" />
+                          <rect x="10" y="18" width="26" height="3" rx="1.5" fill="#10B981" fillOpacity="0.9" />
+                        </svg>
+                        <div className="text-[14px] font-bold leading-tight">May Plastic Card</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setHasPlasticReview(false)}
+                        className={`flex-1 h-[80px] rounded-[20px] bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
+                          hasPlasticReview === false ? 'ring-2 ring-black/10 dark:ring-white/10' : ''
+                        }`}
+                      >
+                        <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <path
+                            d="M10 3.5H22.5L26.5 7.5V27.5C26.5 28.6 25.6 29.5 24.5 29.5H10C8.9 29.5 8 28.6 8 27.5V5.5C8 4.4 8.9 3.5 10 3.5Z"
+                            fill="rgba(255,255,255,0.95)"
+                            stroke="rgba(148,163,184,0.8)"
+                            strokeWidth="1.5"
+                          />
+                          <path d="M12 12H22" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M12 16H20" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+                          <path d="M12 20H18" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        <div className="text-[14px] font-bold leading-tight">Paper Receipt lang</div>
+                      </button>
                     </div>
                   </div>
                 )}

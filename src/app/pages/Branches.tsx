@@ -20,6 +20,7 @@ export function Branches() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null); // FIX 5: Selected branch for the details bottom sheet.
   const [isDetailsOpen, setDetailsOpen] = useState(false); // FIX 5: Bottom sheet open state.
+  const [onboardingTransaction, setOnboardingTransaction] = useState<string | null>(null); // FIX 4A: Transaction-first pre-filter.
   
   // Scenario 5: Intent State
   const [intentBranches, setIntentBranches] = useState<Record<string, boolean>>({});
@@ -42,9 +43,24 @@ export function Branches() {
     };
   }, []);
 
+  useEffect(() => {
+    // FIX 4A: Read onboarding transaction selection.
+    try {
+      setOnboardingTransaction(localStorage.getItem('ligtaslto_transaction'));
+    } catch {
+      setOnboardingTransaction(null);
+    }
+
+    const onComplete = (e: any) => {
+      setOnboardingTransaction(e?.detail?.selectedType ?? null);
+    };
+    window.addEventListener('ligtaslto:onboarding-complete', onComplete as any);
+    return () => window.removeEventListener('ligtaslto:onboarding-complete', onComplete as any);
+  }, []);
+
   // Filter Logic
   const filteredBranches = useMemo(() => {
-    return branches.filter((b) => {
+    const baseFiltered = branches.filter((b) => {
       if (searchQuery.length >= 2) {
         const q = searchQuery.toLowerCase();
         if (!b.name.toLowerCase().includes(q) && !b.address.toLowerCase().includes(q)) return false;
@@ -54,7 +70,38 @@ export function Branches() {
       if (activeFilter === 'May Flag' && !b.hasActiveAnomaly) return false; // IMPROVEMENT 2: Use shared anomaly flag.
       return true;
     });
-  }, [activeFilter, branches, searchQuery]);
+
+    const mapTx = (t: string | null): string | null => {
+      if (!t) return null;
+      switch (t) {
+        case 'Hindi ko alam':
+          return null;
+        case 'License Renewal':
+          return 'License Renewal';
+        case 'Vehicle Registration':
+          return 'MV Registration';
+        case "Driver's License":
+          return 'New License';
+        case 'Student Permit':
+          return 'Other';
+        // Allow direct queue-type values if they exist.
+        case 'MV Registration':
+          return 'MV Registration';
+        case 'New License':
+          return 'New License';
+        case 'Other':
+          return 'Other';
+        default:
+          return null;
+      }
+    };
+
+    const mappedTx = mapTx(onboardingTransaction);
+    if (!mappedTx) return baseFiltered;
+
+    const txFiltered = baseFiltered.filter((b) => b.recentReports?.some((r) => r.transactionType === mappedTx));
+    return txFiltered.length ? txFiltered : baseFiltered;
+  }, [activeFilter, branches, searchQuery, onboardingTransaction]);
 
   const toggleIntent = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,6 +128,33 @@ export function Branches() {
     if (mins < 120) return 'text-tertiary';
     if (mins <= 210) return 'text-amber-600';
     return 'text-error';
+  };
+
+  const getMorningEstimateText = (b: Branch) => {
+    const tomorrowDow = new Date(Date.now() + 24 * 60 * 60 * 1000).getDay();
+    const samples = b.historical_estimates?.walkin_morning_wait_minutes_by_dow?.[tomorrowDow];
+    if (!samples || samples.length < 5) return null;
+    const sorted = [...samples].sort((a, c) => a - c);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+    const medianMins = Math.round(median);
+    const h = Math.floor(medianMins / 60);
+    const m = medianMins % 60;
+    return `Bukas, ~${h}h ${m}m ang pila (Walk-in)`;
+  };
+
+  const getArrivalTimeEstimateText = (b: Branch) => {
+    if (!b.high_demand_warning) return null;
+    const distances = b.intentDistancesKmLast15m || [];
+    if (!distances.length) return null;
+
+    const avgKm = distances.reduce((a, c) => a + c, 0) / distances.length;
+    const travelMinutes = (avgKm / 20) * 60;
+    const arrival = new Date(Date.now() + travelMinutes * 60 * 1000);
+    const raw = arrival.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const cleaned = raw.replace(/\s?(AM|PM)$/, (m) => m.toUpperCase()).replace(' AM', 'AM').replace(' PM', 'PM');
+
+    return { count: distances.length, arrivalTime: cleaned };
   };
 
   return (
@@ -187,14 +261,18 @@ export function Branches() {
 
               <div className="grid grid-cols-2 gap-4 mt-8">
                 <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
-                  <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Walk-in</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Walk-in</span>
+                  </div>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.walkinAvgMinutes)}`}>{Math.round(featured.walkinAvgMinutes / 60 * 10) / 10}h</span> {/* FIX 7: Use shared minutes-based value. */}
                     <span className={`material-symbols-outlined ${waitTone(featured.walkinAvgMinutes)} text-lg`}>trending_up</span>
                   </div>
                 </div>
                 <div className="bg-surface-container-low dark:bg-slate-700 p-4 rounded-xl border border-outline-variant/5 dark:border-slate-700/30">
-                  <span className="text-[10px] font-bold text-outline uppercase tracking-wider block mb-1">Appointment</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Appointment</span>
+                  </div>
                   <div className="flex items-baseline gap-1">
                     <span className={`text-xl font-extrabold ${waitTone(featured.appointmentAvgMinutes)}`}>{featured.appointmentAvgMinutes}m</span> {/* FIX 7: Use shared appointment average minutes. */}
                     <span className={`material-symbols-outlined ${waitTone(featured.appointmentAvgMinutes)} text-lg`}>trending_down</span>
@@ -202,13 +280,54 @@ export function Branches() {
                 </div>
               </div>
 
+              {(() => {
+                const estimate = getMorningEstimateText(featured);
+                if (!estimate) return null;
+                return (
+                  <div className="mt-4 flex items-center gap-2 text-[12px] text-on-surface-variant dark:text-slate-400">
+                    <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                      schedule
+                    </span>
+                    {(() => {
+                      const parts = estimate.split('Walk-in');
+                      return (
+                        <>
+                          {parts[0]}
+                          <span className="inline-flex items-center gap-1">
+                            Walk-in
+                          </span>
+                          {parts[1] || ''}
+                        </>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                const herd = getArrivalTimeEstimateText(featured);
+                if (!herd) return null;
+                return (
+                  <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                    <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 whitespace-normal">
+                      ~{herd.count} katao papunta — karamihan aabot ng {herd.arrivalTime}.
+                    </div>
+                    <div className="mt-1 text-[11px] font-medium text-on-surface-variant dark:text-slate-400">
+                      Kung aalis ka ngayon, maaabot mo pa bago sila.
+                    </div>
+                  </div>
+                );
+              })()}
+
               {featured.is_puno ? (
                 <button
                   type="button"
                   disabled
                   className="w-full mt-8 py-4 rounded-full bg-[#6B1F1F] text-white font-extrabold text-sm opacity-90 cursor-not-allowed"
                 >
-                  PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO disables actions everywhere and shows the same banner/state. */}
+                  <span className="inline-flex items-center gap-2">
+                    PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO disables actions everywhere and shows the same banner/state. */}
+                  </span>
                 </button>
               ) : (
                 <div className="mt-8 flex gap-3">
@@ -294,13 +413,54 @@ export function Branches() {
                     )}
                   </div>
 
+                  {(() => {
+                    const estimate = getMorningEstimateText(b);
+                    if (!estimate) return null;
+                    return (
+                      <div className="mt-2 flex items-center gap-2 text-[12px] text-on-surface-variant dark:text-slate-400">
+                        <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>
+                          schedule
+                        </span>
+                        {(() => {
+                          const parts = estimate.split('Walk-in');
+                          return (
+                            <>
+                              {parts[0]}
+                              <span className="inline-flex items-center gap-1">
+                                Walk-in
+                              </span>
+                              {parts[1] || ''}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
+
+                  {(() => {
+                    const herd = getArrivalTimeEstimateText(b);
+                    if (!herd) return null;
+                    return (
+                      <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                        <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 whitespace-normal">
+                          ~{herd.count} katao papunta — karamihan aabot ng {herd.arrivalTime}.
+                        </div>
+                        <div className="mt-1 text-[11px] font-medium text-on-surface-variant dark:text-slate-400">
+                          Kung aalis ka ngayon, maaabot mo pa bago sila.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {b.is_puno ? (
                     <button
                       type="button"
                       disabled
                       className="w-full py-3 rounded-full bg-[#6B1F1F] text-white font-extrabold text-xs opacity-90 cursor-not-allowed"
                     >
-                      PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO state disables row actions too. */}
+                      <span className="inline-flex items-center gap-2">
+                        PUNO NA — Bumalik Bukas {/* IMPROVEMENT 1: PUNO state disables row actions too. */}
+                      </span>
                     </button>
                   ) : (
                     <div className="flex gap-3 pt-1">

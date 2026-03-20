@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
 import { useNavigate } from 'react-router';
+import { BRANCHES } from '../data/branches';
 
 const CATEGORIES = ['License Renewal', 'MV Registration', 'MVIR', 'Student Permit'];
 
@@ -54,6 +55,12 @@ export function PreCheck() {
   const checklistData = getMockChecklist(activeCategory, true);
   const isAllOk = checklistData.every(item => item.status === 'ok');
 
+  const packingItems = (BRANCHES[0]?.communityRequirements7d || []).slice().sort((a, b) => {
+    // Persona 2C: actively-required items first (missing/red), then OK items (green).
+    if (a.status === b.status) return 0;
+    return a.status === 'missing' ? -1 : 1;
+  });
+
   return (
     <>
       <header className="px-6 pb-4 pt-2">
@@ -76,7 +83,9 @@ export function PreCheck() {
                 : 'bg-surface-container-lowest dark:bg-slate-800 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30 hover:bg-surface-container-low dark:hover:bg-slate-700'
             }`} /* FIX 4: Replace custom dark backgrounds with proper dark variants. */
           >
-            {category}
+            <span className="inline-flex items-center gap-2">
+              {category}
+            </span>
           </motion.button>
         ))}
       </div>
@@ -183,21 +192,60 @@ export function PreCheck() {
             </div>
 
             {/* Scenario 9: Branch Specific Warning Section */}
-            <div className={`border rounded-2xl p-4 mb-5 ${isDark ? 'bg-amber-950/60 border-amber-700' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
-               <h4 className={`text-[13px] font-extrabold flex items-center gap-2 mb-2 ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>
-                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>warning</span> Heads Up sa mga Branch
-               </h4>
-               <p className={`text-[11px] font-medium leading-relaxed mb-3 ${isDark ? 'text-[#F59E0B]/80' : 'text-amber-800'}`}>Base sa huling mga ulat, madalas hanapin ang mga sumusunod sa mga kalapit na sangay kahit wala sa opisyal na listahan:</p>
-               <div className="flex flex-col gap-2">
-                 <div className={`p-2.5 rounded-xl text-xs font-bold border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-[#F59E0B]/20 text-white' : 'bg-white border-amber-200 text-gray-900'}`}>
-                    <span>Updated MedCert</span>
-                    <span className={`text-[10px] font-black uppercase ${isDark ? 'text-[#F59E0B]' : 'text-amber-600'}`}>12 Ulat - LTO Diliman</span>
-                 </div>
-                 <div className={`p-2.5 rounded-xl text-xs font-bold border flex items-center justify-between ${isDark ? 'bg-[#162A45] border-[#F59E0B]/20 text-white' : 'bg-white border-amber-200 text-gray-900'}`}>
-                    <span>Short bond paper ONLY</span>
-                    <span className={`text-[10px] font-black uppercase ${isDark ? 'text-[#F59E0B]' : 'text-amber-600'}`}>5 Ulat - LTO Diliman</span>
-                 </div>
-               </div>
+            <div className={`mt-5 border rounded-2xl p-4 mb-5 ${isDark ? 'bg-amber-950/60 border-amber-700' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" } as any}>info</span>
+                  <h4 className={`text-[13px] font-extrabold ${isDark ? 'text-[#F59E0B]' : 'text-amber-700'}`}>Dagdag na Paalala</h4>
+                </div>
+              </div>
+
+              <div className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant dark:text-slate-400 mb-3">
+                Mga hiningi sa ibang tao ngayon sa branch na ito
+              </div>
+
+              {packingItems.length ? (
+                <div className="space-y-2">
+                  {packingItems.map((r) => {
+                    const isOk = r.status === 'ok';
+                    return (
+                      <div
+                        key={r.tag}
+                        className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-surface-container-lowest dark:bg-slate-800 border border-outline-variant/10 dark:border-slate-700/30"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span
+                            className={`material-symbols-outlined text-[28px] flex-shrink-0 ${
+                              isOk ? 'text-emerald-500 dark:text-emerald-400' : 'text-error dark:text-red-400'
+                            }`}
+                            style={{ fontVariationSettings: "'FILL' 1" } as any}
+                          >
+                            {isOk ? 'check_box' : 'check_box_outline_blank'}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-bold text-sm text-on-surface dark:text-slate-100 truncate">{r.labelFil}</div>
+                            <div className={`text-[11px] font-extrabold ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'} whitespace-nowrap`}>
+                              {isOk ? 'OK naman daw ngayon' : 'HINIHINGI NGAYON'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`px-3 py-1 rounded-full text-[11px] font-extrabold border whitespace-nowrap ${
+                            isOk
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-500/20 dark:border-emerald-800/30'
+                              : 'bg-red-500/10 text-error dark:bg-red-950/60 dark:text-red-300 border-red-500/20 dark:border-red-800/30'
+                          }`}
+                        >
+                          {r.count} nag-ulat
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-on-surface-variant dark:text-slate-400">Walang hiningi ngayon.</div>
+              )}
             </div>
 
             {isAllOk ? (

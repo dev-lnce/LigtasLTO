@@ -4,7 +4,7 @@ export const CHECK_GEOFENCE = (targetLat, targetLng) => {
   return new Promise((resolve) => {
     if (DEMO_MODE) {
       console.warn('[DEMO MODE] Geofence check bypassed.');
-      resolve({ allowed: true });
+      resolve({ allowed: true, coords: null });
       return;
     }
 
@@ -27,10 +27,17 @@ export const CHECK_GEOFENCE = (targetLat, targetLng) => {
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         const distance = R * c;
 
-        if (distance > 500) {
-          resolve({ allowed: false, error: 'Kailangan mong nasa loob ng 500 metro ng branch para mag-submit.' });
+        const maxRadiusM = Number(import.meta.env.VITE_GEOFENCE_START_RADIUS_M || '500');
+        if (distance > maxRadiusM) {
+          resolve({ allowed: false, error: `Kailangan mong nasa loob ng ${maxRadiusM} metro ng branch para mag-submit.` });
         } else {
-          resolve({ allowed: true });
+          resolve({
+            allowed: true,
+            coords: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            },
+          });
         }
       },
       (error) => {

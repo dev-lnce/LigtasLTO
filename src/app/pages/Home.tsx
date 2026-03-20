@@ -19,6 +19,8 @@ export function Home() {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null); // FIX 5: Selected branch drives the details bottom sheet.
   const [isDetailsOpen, setDetailsOpen] = useState(false); // FIX 5: Bottom sheet open state.
   const [dismissedAnomalies, setDismissedAnomalies] = useState<Record<string, boolean>>({}); // IMPROVEMENT 2: Dismiss anomalies for the session only.
+  const [decisionBranches, setDecisionBranches] = useState<Branch[]>([]);
+  const [expandedAnomaly, setExpandedAnomaly] = useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     // IMPROVEMENT 3: Load branch data asynchronously so we can show skeletons while "fetching".
@@ -55,6 +57,121 @@ export function Home() {
   };
 
   const nearest2 = [...branches].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 2); // FIX 3: Top 2 nearest branches by distance.
+
+  const getDecisionStatus = (b: Branch) => {
+    const walk = b.walkinAvgMinutes;
+    const plasticConfirmed = b.hasPlasticCards === true;
+    const plasticUncertain = b.plastic_uncertain === true || b.hasPlasticCards === false;
+    const hasAnomaly = b.hasActiveAnomaly === true;
+    const isPuno = b.is_puno === true;
+    const highDemand = b.high_demand_warning === true;
+    const historicalRisk = b.historical_puno_risk === true;
+
+    if (isPuno || walk > 240 || hasAnomaly) {
+      if (isPuno) return { word: 'HUWAG', tone: 'text-error dark:text-red-400', reason: 'PUNO NA ngayon' };
+      if (hasAnomaly) return { word: 'HUWAG', tone: 'text-error dark:text-red-400', reason: 'May anomaly ngayon' };
+      return { word: 'HUWAG', tone: 'text-error dark:text-red-400', reason: 'Higit 4h pila' };
+    }
+
+    const isIngatByWait = walk >= 120 && walk <= 240;
+    if (isIngatByWait || plasticUncertain || highDemand || historicalRisk) {
+      if (isIngatByWait) {
+        const h = Math.floor(walk / 60);
+        const m = walk % 60;
+        return {
+          word: 'INGAT',
+          tone: 'text-amber-600 dark:text-amber-400',
+          reason: `${h}h ${m.toString().padStart(2, '0')}m pila`,
+        };
+      }
+      if (plasticUncertain) return { word: 'INGAT', tone: 'text-amber-600 dark:text-amber-400', reason: 'Plastic baka kulang' };
+      if (highDemand) {
+        const count = b.intentDistancesKmLast15m?.length ?? 0;
+        return {
+          word: 'INGAT',
+          tone: 'text-amber-600 dark:text-amber-400',
+          reason: `${count} katao papunta`,
+        };
+      }
+      return { word: 'INGAT', tone: 'text-amber-600 dark:text-amber-400', reason: 'Madalas puno ng 9AM' };
+    }
+
+    // PUNTA NA: walk-in avg < 2h + plastic confirmed + no anomaly + not near PUNO.
+    const h = Math.floor(walk / 60);
+    const m = walk % 60;
+    const time = `${h}h ${m.toString().padStart(2, '0')}m`;
+    return {
+      word: 'PUNTA NA',
+      tone: 'text-emerald-600 dark:text-emerald-400',
+      reason: `${time}, may plastic`,
+    };
+  };
+
+  const getArrivalTimeEstimate = (b: Branch) => {
+    if (!b.high_demand_warning) return null;
+    const distances = b.intentDistancesKmLast15m || [];
+    if (!distances.length) return null;
+    const avgKm = distances.reduce((a, c) => a + c, 0) / distances.length;
+    const travelMinutes = (avgKm / 20) * 60;
+    const arrival = new Date(Date.now() + travelMinutes * 60 * 1000);
+    const raw = arrival.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const cleaned = raw.replace(' AM', 'AM').replace(' PM', 'PM');
+    return { count: distances.length, arrivalTime: cleaned };
+  };
+
+  React.useEffect(() => {
+    if (!branches.length) return;
+
+    const savedKey = 'ligtaslto_saved_branches';
+    const run = async () => {
+      const nearest2Local = [...branches].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 2);
+
+      let savedIds: string[] = [];
+      try {
+        // TODO: Backend — add GET /api/branches/saved.
+        const res = await fetch('/api/branches/saved');
+        if (res.ok) {
+          const data = await res.json();
+          savedIds = data?.branch_ids || data?.ids || [];
+        }
+      } catch {}
+
+      if (!savedIds.length) {
+        try {
+          const raw = localStorage.getItem(savedKey);
+          if (raw) savedIds = JSON.parse(raw);
+        } catch {}
+      }
+
+      if (savedIds.length) {
+        const savedBranches = savedIds
+          .map((id: string) => branches.find((b) => b.id === id))
+          .filter(Boolean) as Branch[];
+        setDecisionBranches(savedBranches.slice(0, 2));
+      } else {
+        setDecisionBranches(nearest2Local.slice(0, 2));
+      }
+    };
+
+    run();
+  }, [branches]);
+
+  const handleSaveDecisionBranches = async () => {
+    if (!decisionBranches.length) return;
+    const ids = decisionBranches.map((b) => b.id);
+    try {
+      localStorage.setItem('ligtaslto_saved_branches', JSON.stringify(ids));
+    } catch {}
+
+    try {
+      // TODO: Backend — add POST /api/branches/save.
+      await fetch('/api/branches/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch_ids: ids }),
+      });
+    } catch {}
+  };
   const visibleAnomalies = branches
     .filter((b) => b.hasActiveAnomaly && !dismissedAnomalies[b.id])
     .slice(0, 2); // IMPROVEMENT 2: Max 2 visible anomaly cards.
@@ -119,6 +236,42 @@ export function Home() {
         )}
       </AnimatePresence>
 
+      {/* Persona 3A: Decision Widget */}
+      <section className="mb-6">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+          {(decisionBranches.length ? decisionBranches : nearest2).map((b) => {
+            const s = getDecisionStatus(b);
+            return (
+              <button
+                key={b.id}
+                type="button"
+                disabled={b.is_puno === true}
+                onClick={() => {
+                  if (b.is_puno) return;
+                  navigate(`/queue?branch=${encodeURIComponent(b.id)}`);
+                }}
+                className="flex-shrink-0 w-[160px] min-h-[100px] rounded-lg border border-outline-variant/10 dark:border-slate-700/30 p-3 bg-surface-container-lowest dark:bg-slate-800 text-left transition-transform active:scale-[0.99] disabled:opacity-55 disabled:cursor-not-allowed"
+              >
+                <div className="text-[13px] font-bold truncate text-on-surface dark:text-slate-100">{b.name}</div>
+                <div className={`text-[20px] font-medium font-bold ${s.tone} mt-1`}>{s.word}</div>
+                <div className="text-[12px] text-on-surface-variant dark:text-slate-400 mt-0.5">{s.reason}</div>
+                <div className={`mt-2 text-[12px] font-extrabold ${b.is_puno ? 'text-error dark:text-red-400' : 'text-primary'}`}>
+                  {b.is_puno ? 'PUNO NA' : 'Pumila Dito'}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={handleSaveDecisionBranches}
+          className="text-sm font-bold text-primary"
+          aria-label="I-save ang branch"
+        >
+          i-save ang branch
+        </button>
+      </section>
+
       {/* Hero Section */}
       <section className="main-hero-gradient rounded-lg p-8 relative overflow-hidden shadow-[0_8px_32px_rgba(25,28,30,0.04)] mb-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
@@ -168,23 +321,48 @@ export function Home() {
       {visibleAnomalies.length > 0 && (
         <div className="mb-6 space-y-3">
           {visibleAnomalies.map((b) => (
-            <div key={b.id} className="border border-error/30 dark:border-amber-800/50 bg-error/10 dark:bg-amber-950/60 rounded-xl p-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-extrabold text-on-surface dark:text-slate-100 truncate">{b.name}</div>
-                <div className="text-xs font-semibold text-on-surface-variant dark:text-slate-400 line-clamp-1 mt-0.5">
-                  {b.anomalyDescription || 'May aktibong anomaly report.'} {/* IMPROVEMENT 2: One-line anomaly description. */}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openDetails(b)}
-                  className="mt-2 text-sm font-bold text-primary"
+            <div
+              key={b.id}
+              className="border border-amber-500/30 dark:border-amber-800/50 bg-amber-500/10 dark:bg-amber-950/60 rounded-xl p-4 flex items-start justify-between gap-3"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span
+                  className="material-symbols-outlined text-amber-700 dark:text-amber-400 mt-0.5"
+                  style={{ fontVariationSettings: "'FILL' 1" } as any}
                 >
-                  Tingnan Branch {/* IMPROVEMENT 2: Link opens the branch details sheet. */}
-                </button>
+                  warning
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[14px] font-bold text-on-surface dark:text-slate-100">
+                    May mga nag-ulat ng kahina-hinalang mabilis na transaksyon dito.
+                  </div>
+                  <div className="text-[13px] font-normal text-on-surface-variant dark:text-slate-400 mt-1">
+                    Huwag magbayad ng dagdag sa kahit sino. Official fees lang ang tama.
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedAnomaly((prev) => ({ ...prev, [b.id]: !prev[b.id] }))}
+                    className="mt-2 text-[12px] font-bold text-primary underline underline-offset-2"
+                  >
+                    Ano ito?
+                  </button>
+
+                  {expandedAnomaly[b.id] && (
+                    <div className="mt-2 text-[12px] text-on-surface-variant dark:text-slate-400 leading-relaxed">
+                      Ang fixer ay mga taong nag-aalok ng mabilis na pagproseso kapalit ng dagdag na bayad sa labas ng LTO.
+                      Kung may ganito, iwasan ang dagdag-bayad at sundin ang official fees at opisyal na proseso.
+                    </div>
+                  )}
+
+                  <button type="button" onClick={() => openDetails(b)} className="mt-2 text-sm font-bold text-primary">
+                    Tingnan Branch
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {hiddenAnomalyCount > 0 && (
-                  <span className="px-2 py-1 rounded-full text-[10px] font-extrabold bg-error text-white">
+                  <span className="px-2 py-1 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
                     +{hiddenAnomalyCount} {/* IMPROVEMENT 2: "+ count" badge when more anomalies exist. */}
                   </span>
                 )}
@@ -305,6 +483,21 @@ export function Home() {
                     {b.hasPlasticCards ? 'May Plastic' : 'Wala Plastic'} {/* FIX 3: Plastic availability pill. */}
                   </span>
                 </div>
+
+                {(() => {
+                  const herd = getArrivalTimeEstimate(b);
+                  if (!herd) return null;
+                  return (
+                    <div className="mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                      <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 whitespace-normal">
+                        ~{herd.count} katao papunta — karamihan aabot ng {herd.arrivalTime}.
+                      </div>
+                      <div className="mt-1 text-[11px] font-medium text-on-surface-variant dark:text-slate-400">
+                        Kung aalis ka ngayon, maaabot mo pa bago sila.
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
