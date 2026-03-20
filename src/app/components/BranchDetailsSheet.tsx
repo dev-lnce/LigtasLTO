@@ -250,7 +250,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
 
                   <div className="flex items-center justify-between gap-3 py-3 border-b border-outline-variant/10 dark:border-slate-700/30">
                     <div className="text-[14px] font-normal flex-1 pr-2 text-on-surface-variant dark:text-slate-300">
-                      Kumpleto ba ang iyong mga dokumento ayon sa listahan sa ibaba?
+                      Kumpleto ba ang documents mo base sa listahan sa ibaba?
                     </div>
                     <div className="flex gap-2 w-[180px]">
                       <button
@@ -290,7 +290,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
 
                   <div className="flex items-center justify-between gap-3 py-3">
                     <div className="text-[14px] font-normal flex-1 pr-2 text-on-surface-variant dark:text-slate-300">
-                      Handa ka na sa bayad ng official fees lang (walang dagdag)?
+                      Handa ka na sa official fees lang (walang extra)?
                     </div>
                     <div className="flex gap-2 w-[180px]">
                       <button
@@ -360,7 +360,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
               Grade {branch.grade} {/* FIX 5: Grade badge A–F. */}
             </div>
             <div className="flex-1 px-3 py-2 rounded-full text-xs font-extrabold border text-center bg-surface-container-low dark:bg-slate-700/50 text-on-surface-variant dark:text-slate-400 border-outline-variant/10 dark:border-slate-700/30">
-              {branch.reportsToday} ulat ngayon {/* FIX 5: Live report count for today. */}
+              {branch.reportsToday} reports today
             </div>
           </div>
 
@@ -388,7 +388,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
           {/* Section 3 — Heads Up Card (community requirements accordion) */}
           <div className="mt-6 border rounded-2xl p-4 bg-amber-500/5 dark:bg-amber-950/60 border-amber-500/30 dark:border-amber-700">
             <div className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant dark:text-slate-400 mb-3">
-              Mga hiningi sa ibang tao ngayon sa branch na ito
+              Mga hiningi sa iba today sa branch na ito
             </div>
             {branch.communityRequirements7d.length ? (
               <div className="space-y-2">
@@ -416,7 +416,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                             <div className="min-w-0">
                               <div className="font-bold text-sm text-on-surface dark:text-slate-100" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', lineHeight: '1.4' }}>{r.labelFil}</div>
                               <div className={`text-[11px] font-extrabold ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'} whitespace-nowrap`}>
-                                {isOk ? 'OK naman daw ngayon' : 'HINIHINGI NGAYON'}
+                                {isOk ? 'OK naman today' : 'HINIHINGI TODAY'}
                               </div>
                             </div>
                           </div>
@@ -428,7 +428,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                                   : 'bg-red-500/10 text-error dark:bg-red-950/60 dark:text-red-300 border-red-500/20 dark:border-red-800/30'
                               }`}
                             >
-                              {r.count} nag-ulat
+                              {r.count} nag-report
                             </div>
                             <span className={`material-symbols-outlined text-base text-on-surface-variant transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
                           </div>
@@ -439,11 +439,11 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                           <div className="mt-1 px-3 py-3 rounded-xl bg-surface-container-low dark:bg-slate-700/50 border border-outline-variant/10 dark:border-slate-700/30">
                             <div className="font-bold text-[14px] text-on-surface dark:text-slate-100 mb-1" style={{ whiteSpace: 'normal', lineHeight: '1.4' }}>{r.labelFil}</div>
                             <div className={`text-[12px] font-extrabold mb-2 ${isOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-error dark:text-red-400'}`}>
-                              {isOk ? 'OK NAMAN DAW NGAYON' : 'HINIHINGI NGAYON'}
+                              {isOk ? 'OK NAMAN TODAY' : 'HINIHINGI TODAY'}
                             </div>
                             <div className="text-[12px] text-on-surface-variant dark:text-slate-400 leading-relaxed mb-3">
-                              {r.count} tao ang nag-ulat nito ngayon.
-                              {!isOk && ' Ibig sabihin: huwag pumunta nang walang requirement na ito.'}
+                              {r.count} persons reported this today.
+                              {!isOk && ' Ibig sabihin: huwag pumunta kung wala kang requirement na ito.'}
                             </div>
 
                             {reportToast?.tag === r.tag ? (
@@ -579,7 +579,7 @@ export function BranchDetailsSheet({ open, branch, onClose }: Props) {
                   : 'bg-primary text-white dark:bg-white dark:text-black shadow-md shadow-primary/20'
               }`}
             >
-              {isPuno ? 'PUNO NA — Bumalik Bukas' : 'Pumila Dito'}
+              {isPuno ? 'PUNO NA — Balik na lang bukas' : 'Pumila Dito'}
             </button>
           </div>
         </div>

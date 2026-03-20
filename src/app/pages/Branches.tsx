@@ -229,7 +229,7 @@ export function Branches() {
       <BranchDetailsSheet open={isDetailsOpen} branch={selectedBranch} onClose={() => setDetailsOpen(false)} />
 
       {/* Search Bar */}
-      <div className="relative group mt-4">
+      <div className="relative group mt-8">
         <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
           <span className="material-symbols-outlined text-outline">search</span>
         </div>
@@ -237,7 +237,7 @@ export function Branches() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-surface-container-lowest dark:bg-slate-800 border-none rounded-full py-4 pl-14 pr-6 text-on-surface dark:text-slate-100 placeholder:text-outline dark:placeholder-slate-500 focus:ring-2 focus:ring-primary-fixed dark:focus:ring-slate-500 shadow-sm transition-all duration-300"
-          placeholder="Maghanap ng Sanga (e.g. Quezon City)"
+          placeholder="Maghanap ng Branch (e.g. Quezon City)"
           type="text"
         />
       </div>
@@ -294,7 +294,7 @@ export function Branches() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
               {featured.is_puno && (
                 <div className="absolute inset-0 flex items-center justify-center p-6 bg-black/40 backdrop-blur-[2px] z-10">
-                  <div className="bg-error text-on-error px-6 py-3 rounded-full text-[13px] font-black uppercase tracking-[0.15em] flex items-center gap-3 shadow-2xl border border-white/20 animate-in fade-in zoom-in duration-300">
+                  <div className="bg-error text-on-error px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-[0.15em] flex items-center gap-2 shadow-2xl border border-white/20 animate-in fade-in zoom-in duration-300">
                     <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
                     {strings.punoBanner}
                   </div>
@@ -435,7 +435,7 @@ export function Branches() {
       {/* Other branches list */}
       {others.length > 0 && (
         <div className="mt-12 mb-8">
-          <h3 className="text-lg font-bold text-on-surface dark:text-slate-100 px-1 mb-4">Iba pang Sanga Malapit Sayo</h3>
+          <h3 className="text-lg font-bold text-on-surface dark:text-slate-100 px-1 mb-4">Other Branches Near You</h3>
           <div className="space-y-4">
             {others.map((b) => (
               <div

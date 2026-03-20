@@ -121,30 +121,30 @@ export function Queue() {
   const [milestones, setMilestones] = useState([
     {
       id: 'eval',
-      label: 'Tinanggap na ang papel ko sa unang window,',
+      label: 'Accepted na ang papers ko sa first window',
       icon: 'description',
-      contextNote: 'Hintayin ang iyong pangalan o numero na matawag sa evaluation area.\nIhanda ang inyong form o papel para ipakita sa unang bintana.',
+      contextNote: 'Hintayin ang pangalan o numero mo na matawag sa evaluation area.\nIhanda ang form or documents mo para ipakita sa first window.',
       timestamp: null as Date | null,
     },
     {
       id: 'photo',
-      label: 'Kinunan na ako ng litrato at fingerprint,',
+      label: 'Done na ang photo at fingerprint',
       icon: 'photo_camera',
-      contextNote: 'Siguraduhing malinaw ang litrato at fingerprint.\nKung may hinihinging retake, sundin agad ang instruksyon.',
+      contextNote: 'Siguraduhing malinaw ang photo at fingerprint.\nKung may retake, sundin agad ang instructions.',
       timestamp: null as Date | null,
     },
     {
       id: 'cashier',
-      label: 'Nabayaran na ko sa cashier window,',
+      label: 'Paid na sa cashier window',
       icon: 'payments',
-      contextNote: 'I-check na na-proseso na ang bayad mo sa cashier window.\nHintayin ang resibo o kumpirmasyon bago mag-move.',
+      contextNote: 'Check if processed na ang payment mo sa cashier.\nHintayin ang receipt or confirmation bago mag-move.',
       timestamp: null as Date | null,
     },
     {
       id: 'release',
-      label: 'Tapos Na',
+      label: 'Tapos Na! (Released)',
       icon: 'badge',
-      contextNote: 'Hintayin ang iyong pangalan o numero sa release window.\nKapag tumawag na, kunin ang ID o resibo at i-double check.',
+      contextNote: 'Hintayin ang pangalan o numero mo sa release window.\nPag tinawag ka na, kunin ang ID or receipt and double check.',
       timestamp: null as Date | null,
     },
   ]);
@@ -357,7 +357,7 @@ export function Queue() {
       setQueueOcrState('success');
     } catch {
       setQueueOcrState('failed');
-      setQueueOcrError('Hindi namin nabasa ang queue number sa litrato.');
+      setQueueOcrError('Hindi namin mabasa ang queue number sa photo.');
     }
   };
 
@@ -528,7 +528,7 @@ export function Queue() {
           }
         }
 
-        toast.error('Wala kang signal. I-uupload ang ulat mamaya pag may net na.', { duration: 4000 });
+        toast.error('No signal. I-uupload ang report later pag may internet na.', { duration: 4000 });
       } else {
         // SCENARIO: Validation or Other Server Errors (400, 500)
         toast.error(`Error: ${e.message}`, { duration: 5000 });
@@ -608,12 +608,12 @@ export function Queue() {
           className="w-full min-h-[56px] rounded-2xl border-2 border-outline-variant/30 bg-transparent text-on-surface dark:text-slate-100 font-black text-[15px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
         >
           <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" } as any}>photo_camera</span>
-          I-litrato ang iyong slip
+          Mag-take ng photo ng slip mo
         </button>
 
         {queueOcrState === 'loading' && (
           <div className="mt-2 text-[11px] font-bold text-on-surface-variant dark:text-slate-400">
-            Sinusuri ang litrato...
+            Sinusuri ang photo...
           </div>
         )}
 
@@ -627,7 +627,7 @@ export function Queue() {
               onClick={onCaptureClicked}
               className="shrink-0 text-[12px] font-black text-primary dark:text-blue-300 underline underline-offset-2"
             >
-              Mali ba?
+              Mali ba? (Retake)
             </button>
           </div>
         )}
@@ -982,7 +982,7 @@ export function Queue() {
         )}
       </AnimatePresence>
 
-      <header className="px-6 pb-4 flex items-center justify-between">
+      <header className="px-6 pt-6 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {

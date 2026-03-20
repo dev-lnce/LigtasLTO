@@ -75,7 +75,7 @@ export function Root() {
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Tahanan' },
-    { path: '/branches', icon: 'map', label: 'Sanga' },
+    { path: '/branches', icon: 'map', label: 'Branch' },
     { path: '/queue', icon: 'layers', label: 'Pila' },
     { path: '/pre-check', icon: 'fact_check', label: 'Pre-Check' },
   ];
@@ -256,7 +256,7 @@ export function Root() {
 
       {/* Amber Demo Mode banner removed and integrated into header */}
 
-      <main className="px-6 max-w-2xl mx-auto pb-8 pt-[env(safe-area-inset-top,16px)]" style={{ marginTop: '5rem' }}>
+      <main className="px-6 max-w-2xl mx-auto pb-8 pt-[env(safe-area-inset-top,16px)]" style={{ marginTop: '6.5rem' }}>
         <Outlet />
       </main>
 
